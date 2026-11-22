@@ -332,7 +332,7 @@ footer { background: var(--charcoal); color: var(--white); padding: 3rem 5% 1.5r
 <body>
 
 <nav>
-  <a href="#"><span class="logo-text">Bevel <span>Builders</span></span></a>
+  <a href="index.html"><span class="logo-text">Bevel <span>Builders</span></span></a>
   <button class="nav-toggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
   <ul class="nav-links">
     <li><a href="#services">Services</a></li>
@@ -524,10 +524,12 @@ footer { background: var(--charcoal); color: var(--white); padding: 3rem 5% 1.5r
         <div><strong>Phone</strong> (916) 572-4818</div>
         <div><strong>Service Area</strong> Sacramento, El Dorado &amp; Placer Counties</div>
         <div><strong>License</strong> CA General Contractor #1113839</div>
-        <div><strong>Hours</strong> Monday – Friday</div>
+        <div><strong>Hours</strong> Monday – Friday, 7:00 AM – 3:30 PM</div>
       </div>
     </div>
-    <form class="contact-form">
+    <form class="contact-form" id="contact-form" action="https://formspree.io/f/mjgelgzo" method="POST">
+      <input type="hidden" name="_subject" value="New website inquiry: bevelbuilders.com">
+      <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off">
       <div class="form-group">
         <label for="name">Name*</label>
         <input type="text" id="name" name="name" required>
@@ -545,6 +547,7 @@ footer { background: var(--charcoal); color: var(--white); padding: 3rem 5% 1.5r
         <textarea id="message" name="message" rows="4" required></textarea>
       </div>
       <button type="submit" class="form-submit">Send Message</button>
+      <p id="form-status" role="status" style="margin-top:0.9rem;font-size:0.95rem"></p>
     </form>
   </div>
 </section>
@@ -601,5 +604,20 @@ footer { background: var(--charcoal); color: var(--white); padding: 3rem 5% 1.5r
   });
 </script>
 
+<script>
+(function(){
+  var f=document.getElementById('contact-form'), st=document.getElementById('form-status');
+  if(!f) return;
+  f.addEventListener('submit', function(e){
+    e.preventDefault();
+    var btn=f.querySelector('.form-submit'); btn.disabled=true; st.style.color='#2E624B'; st.textContent='Sending…';
+    fetch(f.action,{method:'POST',body:new FormData(f),headers:{'Accept':'application/json'}})
+      .then(function(r){ if(r.ok){ f.reset(); st.textContent='Thanks! Your message was sent. Amon will get back to you within one business day.'; }
+        else { throw new Error(); } })
+      .catch(function(){ st.style.color='#a33'; st.textContent='Sorry, that didn\'t send. Please call (916) 572-4818 or try again.'; })
+      .finally(function(){ btn.disabled=false; });
+  });
+})();
+</script>
 </body>
 </html>
