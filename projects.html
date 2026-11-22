@@ -6,8 +6,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Antic+Slab&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <title>Our Projects | Bevel Builders, Inc.</title>
-  <meta name="description" content="Browse completed residential projects by Bevel Builders, Inc. — kitchen remodels, room additions, and bathroom renovations across Sacramento, El Dorado Hills, and Placer County.">
+  <title>Remodeling Projects | Bevel Builders, El Dorado Hills</title>
+  <meta name="description" content="Completed Bevel Builders projects: kitchen remodels, bathroom renovations, additions and exterior work in El Dorado Hills and Sacramento.">
   <link rel="canonical" href="https://bevelbuilders.com/projects.html">
   <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -50,6 +50,7 @@
   .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .photo-item { aspect-ratio: 4/3; background-size: cover; background-position: center;
     border-radius: 4px; position: relative; overflow: hidden; }
+  .photo-item img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
   .photo-item.wide { grid-column: span 2; }
   .photo-item.tall { grid-row: span 2; }
   .photo-tag { position: absolute; top: 10px; left: 10px; font-size: 0.65rem; font-weight: 600;
@@ -123,7 +124,7 @@
   .project-card { text-decoration: none; color: inherit; background: var(--white); border-radius: 6px;
     overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; display: block; }
   .project-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.13); }
-  .project-card-img { height: 240px; background-size: cover; background-position: center; }
+  .project-card-img { height: 240px; width: 100%; object-fit: cover; display: block; }
   .project-card-body { padding: 1.4rem; }
   .project-card-label { font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--green); font-weight: 600; }
   .project-card-title { font-family: 'Antic Slab', serif; font-size: 1.2rem; margin: 0.4rem 0 0.3rem; color: var(--black); }
@@ -132,6 +133,13 @@
   @media (max-width: 600px) { .project-cards { grid-template-columns: 1fr; } }
 
   </style>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bevel Builders">
+<meta property="og:title" content="Remodeling Projects | Bevel Builders, El Dorado Hills">
+<meta property="og:description" content="Completed Bevel Builders projects: kitchen remodels, bathroom renovations, additions and exterior work in El Dorado Hills and Sacramento.">
+<meta property="og:url" content="https://bevelbuilders.com/projects.html">
+<meta property="og:image" content="https://bevelbuilders.com/edh-kitchen-remodel-after-1.jpg">
+<meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
 
@@ -158,7 +166,7 @@
   <div class="project-cards">
 
     <a href="kitchen-remodel.html" class="project-card">
-      <div class="project-card-img" style="background-image:url('kitchen_4.jpg')"></div>
+      <img class="project-card-img" src="edh-kitchen-remodel-after-1.jpg" alt="Open-Concept Kitchen Conversion — Bevel Builders project" loading="lazy" width="1200" height="900">
       <div class="project-card-body">
         <span class="project-card-label">Kitchen Remodel</span>
         <h3 class="project-card-title">Open-Concept Kitchen Conversion</h3>
@@ -168,7 +176,7 @@
     </a>
 
     <a href="master-suite-addition.html" class="project-card">
-      <div class="project-card-img" style="background-image:url('add_after_bedroom1.jpg')"></div>
+      <img class="project-card-img" src="edh-primary-suite-addition-bedroom-1.jpg" alt="Master Suite Addition — Bevel Builders project" loading="lazy" width="1200" height="900">
       <div class="project-card-body">
         <span class="project-card-label">Room Addition</span>
         <h3 class="project-card-title">Master Suite Addition</h3>
@@ -178,7 +186,7 @@
     </a>
 
     <a href="hall-bath-remodel.html" class="project-card">
-      <div class="project-card-img" style="background-image:url('bath_1.jpg')"></div>
+      <img class="project-card-img" src="edh-hall-bath-remodel-2.jpg" alt="Hall Bath Remodel — Bevel Builders project" loading="lazy" width="1200" height="900">
       <div class="project-card-body">
         <span class="project-card-label">Bathroom Remodel</span>
         <h3 class="project-card-title">Hall Bath Remodel</h3>
@@ -188,7 +196,7 @@
     </a>
 
     <a href="oak-park-spa-bath.html" class="project-card">
-      <div class="project-card-img" style="background-image:url('oakpark_1.jpg')"></div>
+      <img class="project-card-img" src="oak-park-sacramento-spa-bath-3.jpg" alt="Spa Bath — Oak Park Home — Bevel Builders project" loading="lazy" width="1200" height="900">
       <div class="project-card-body">
         <span class="project-card-label">Historic Home Remodel</span>
         <h3 class="project-card-title">Spa Bath — Oak Park Home</h3>
@@ -198,7 +206,7 @@
     </a>
 
     <a href="pocket-master-hall-bath.html" class="project-card">
-      <div class="project-card-img" style="background-image:url('pocket_after_1.jpg')"></div>
+      <img class="project-card-img" src="pocket-sacramento-bath-remodel-after-1.jpg" alt="Master & Hall Bath Remodel — Bevel Builders project" loading="lazy" width="1200" height="900">
       <div class="project-card-body">
         <span class="project-card-label">Bathroom Remodel</span>
         <h3 class="project-card-title">Master &amp; Hall Bath Remodel</h3>
@@ -208,7 +216,7 @@
     </a>
 
     <a href="pocket-patio-exterior.html" class="project-card">
-      <div class="project-card-img" style="background-image:url('yvonne_after_4.jpg')"></div>
+      <img class="project-card-img" src="pocket-sacramento-patio-cover-after-2.jpg" alt="Patio Cover Rebuild & Repaint — Bevel Builders project" loading="lazy" width="1200" height="900">
       <div class="project-card-body">
         <span class="project-card-label">Exterior &amp; Patio</span>
         <h3 class="project-card-title">Patio Cover Rebuild &amp; Repaint</h3>
@@ -247,7 +255,7 @@
     </div>
   </div>
   <div class="footer-bottom">
-    <span>© 2026 Bevel Builders, Inc. · CA License #1113839 · Licensed &amp; Bonded · Serving Sacramento, El Dorado &amp; Placer Counties</span>
+    <span>© 2026 Bevel Builders, Inc. · CA License #1113839 · Licensed · Bonded · General Liability Insured · Serving Sacramento, El Dorado &amp; Placer Counties</span>
     <a href="privacy.html">Privacy Policy</a>
   </div>
 </footer>
