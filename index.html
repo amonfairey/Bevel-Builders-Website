@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Antic+Slab&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<title>Bevel Builders, Inc. — General Contractor | El Dorado Hills, CA</title>
+<meta name="description" content="Bevel Builders, Inc. — licensed general contractor serving Sacramento, El Dorado, and Placer Counties. Kitchen remodels, room additions, bathroom renovations, and full-service residential construction.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --tan: #DDD1A9; --tan-dark: #C9BC8E; --tan-light: #EDE5CC;
+  --green: #2E624B; --green-mid: #4A8C6A; --green-light: #82B09A;
+  --black: #000000; --charcoal: #1a1a1a; --white: #FFFFFF; --border: #C2B48A;
+}
+html { scroll-behavior: smooth; }
+body { font-family: 'DM Sans', sans-serif; background: var(--tan-light); color: var(--black); line-height: 1.6; font-size: 1.05rem; }
+a { text-decoration: none; }
+
+/* NAV */
+nav { position: fixed; top: 0; width: 100%; z-index: 100; background: rgba(237,229,204,0.97);
+  backdrop-filter: blur(8px); border-bottom: 1.5px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center; padding: 0.9rem 5%; }
+.logo-text { font-family: 'Antic Slab', serif; font-size: 1.45rem; font-weight: 400; color: var(--black); letter-spacing: 0.01em; }
+.logo-text span { color: var(--green); }
+.nav-links { display: flex; gap: 2.5rem; list-style: none; align-items: center; }
+.nav-links a { color: var(--black); font-size: 0.88rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500; }
+.nav-links a:hover { color: var(--green); }
+.nav-cta { background: var(--green) !important; color: var(--white) !important;
+  padding: 0.6rem 1.3rem !important; border-radius: 3px; }
+.nav-cta:hover { background: var(--charcoal) !important; color: var(--white) !important; }
+
+.nav-toggle { display: none; flex-direction: column; justify-content: center; gap: 5px;
+  width: 32px; height: 32px; background: none; border: none; cursor: pointer; padding: 0; }
+.nav-toggle span { display: block; width: 100%; height: 2px; background: var(--black); transition: all 0.25s ease; }
+.nav-toggle.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-toggle.open span:nth-child(2) { opacity: 0; }
+.nav-toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/* HERO */
+.hero {
+  min-height: 92vh; display: flex; align-items: center; position: relative;
+  padding: 6rem 5% 4rem;
+  background:
+    linear-gradient(180deg, rgba(26,26,26,0.45) 0%, rgba(26,26,26,0.75) 100%),
+    url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=1800&auto=format&fit=crop') center/cover;
+  color: var(--white);
+}
+.hero-content { max-width: 680px; }
+.hero-eyebrow {
+  font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--green-light); font-weight: 600; margin-bottom: 1.2rem;
+}
+.hero h1 {
+  font-family: 'Antic Slab', serif; font-size: clamp(2.4rem, 5.5vw, 4rem);
+  line-height: 1.15; margin-bottom: 1.3rem;
+}
+.hero p { font-size: 1.1rem; max-width: 540px; opacity: 0.88; margin-bottom: 2.2rem; }
+.hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+.btn-primary, .btn-secondary {
+  padding: 0.9rem 1.9rem; border-radius: 3px; font-weight: 600; font-size: 0.85rem;
+  letter-spacing: 0.06em; text-transform: uppercase; display: inline-block; transition: all 0.2s;
+}
+.btn-primary { background: var(--green); color: var(--white); }
+.btn-primary:hover { background: var(--green-mid); }
+.btn-secondary { border: 1.5px solid rgba(255,255,255,0.5); color: var(--white); }
+.btn-secondary:hover { border-color: var(--white); background: rgba(255,255,255,0.08); }
+
+/* SECTION SHARED */
+.section { padding: 6.5rem 5%; }
+.section-eyebrow {
+  font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--green); font-weight: 700; margin-bottom: 0.8rem;
+}
+.section-title { font-family: 'Antic Slab', serif; font-size: clamp(1.9rem, 3.6vw, 2.6rem);
+  max-width: 600px; margin-bottom: 1rem; line-height: 1.2; }
+.section-sub { max-width: 580px; color: #444; font-size: 1.1rem; }
+.section-header { margin-bottom: 3.5rem; }
+.section-header.center { text-align: center; margin-left: auto; margin-right: auto; }
+.section-header.center .section-title, .section-header.center .section-sub { margin-left: auto; margin-right: auto; }
+
+/* SERVICES */
+.services-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.8rem; }
+.service-card {
+  background: var(--white); border: 1px solid var(--border); padding: 2.4rem 1.9rem;
+  border-radius: 5px; transition: transform 0.25s, box-shadow 0.25s;
+}
+.service-card:hover { transform: translateY(-4px); box-shadow: 0 16px 36px rgba(0,0,0,0.08); }
+.service-icon {
+  width: 46px; height: 46px; background: var(--tan-light); border: 1px solid var(--border);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 1.4rem; font-size: 1.25rem;
+}
+.service-card h3 { font-family: 'Antic Slab', serif; font-size: 1.25rem; margin-bottom: 0.6rem; }
+.service-card p { font-size: 0.95rem; color: #555; }
+
+/* PROCESS — ruler/tape measure signature */
+.process-section { background: var(--charcoal); color: var(--white); padding: 6.5rem 5%; }
+.process-section .section-eyebrow { color: var(--green-light); }
+.process-section .section-title { color: var(--white); }
+.process-section .section-sub { color: rgba(255,255,255,0.65); }
+
+.ruler { position: relative; margin-top: 3.5rem; padding-top: 1.8rem; border-top: 2px solid rgba(255,255,255,0.18); }
+.ruler::before {
+  content: ''; position: absolute; top: -2px; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--green-light), transparent); width: 100%;
+}
+.ruler-marks { display: flex; justify-content: space-between; margin-bottom: -2px; }
+.ruler-marks span { width: 1px; height: 14px; background: rgba(255,255,255,0.2); display: block; }
+.ruler-marks span.major { height: 22px; background: rgba(255,255,255,0.45); }
+
+.timeline-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.4rem; margin-top: 2.2rem; }
+.timeline-step .step-mark { font-family: 'Antic Slab', serif; font-size: 0.85rem; color: var(--green-light); margin-bottom: 0.7rem; letter-spacing: 0.05em; }
+.timeline-step h4 { font-family: 'Antic Slab', serif; font-size: 1.25rem; margin-bottom: 0.5rem; color: var(--white); }
+.timeline-step p { font-size: 0.9rem; color: rgba(255,255,255,0.6); }
+
+/* PORTFOLIO */
+.portfolio-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 270px); gap: 14px;
+}
+.portfolio-item { position: relative; border-radius: 4px; overflow: hidden; background-size: cover; background-position: center; display: block; }
+.portfolio-item:nth-child(1) { grid-column: span 2; grid-row: span 2; }
+.portfolio-item .overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.85) 100%);
+  display: flex; align-items: flex-end; padding: 1.4rem; opacity: 0; transition: opacity 0.3s;
+}
+.portfolio-item:hover .overlay { opacity: 1; }
+.overlay-text { color: var(--white); }
+.overlay-text .tag {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--green-light); font-weight: 700; margin-bottom: 0.4rem; display: block;
+}
+.overlay-text h4 { font-family: 'Antic Slab', serif; font-size: 1.25rem; color: var(--white); margin-bottom: 0.2rem; }
+.overlay-text .loc { font-size: 0.82rem; color: rgba(255,255,255,0.7); }
+
+.view-all-link {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  margin-top: 2.2rem; font-size: 0.8rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--green);
+}
+.view-all-link:hover { color: var(--charcoal); }
+
+/* TESTIMONIALS / WHY US */
+.why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+.why-card { background: var(--white); border: 1px solid var(--border); padding: 2.2rem 1.9rem; border-radius: 5px; }
+.why-card .num { font-family: 'Antic Slab', serif; font-size: 0.85rem; color: var(--green); letter-spacing: 0.1em; margin-bottom: 0.6rem; }
+.why-card h3 { font-family: 'Antic Slab', serif; font-size: 1.2rem; margin-bottom: 0.6rem; }
+.why-card p { font-size: 0.95rem; color: #555; }
+
+/* ABOUT TEASER */
+.about-teaser {
+  display: grid; grid-template-columns: 320px 1fr; gap: 3rem; align-items: center;
+  background: var(--white); border: 1px solid var(--border); border-radius: 6px; padding: 3rem; overflow: hidden;
+}
+.about-teaser img { width: 100%; border-radius: 5px; display: block; }
+.about-teaser-text h2 { font-family: 'Antic Slab', serif; font-size: 1.8rem; margin-bottom: 1rem; }
+.about-teaser-text p { font-size: 1rem; color: #444; margin-bottom: 1.4rem; max-width: 560px; }
+.about-teaser-text .about-link {
+  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--green);
+}
+.about-teaser-text .about-link:hover { color: var(--charcoal); }
+
+/* FAQ */
+.faq-list { max-width: 760px; }
+.faq-item { border-bottom: 1px solid var(--border); }
+.faq-question {
+  width: 100%; text-align: left; background: none; border: none; padding: 1.5rem 0;
+  font-family: 'Antic Slab', serif; font-size: 1.05rem; font-weight: 400;
+  display: flex; justify-content: space-between; align-items: center; cursor: pointer; color: var(--black);
+}
+.faq-icon { font-size: 1.3rem; color: var(--green); transition: transform 0.25s; flex-shrink: 0; margin-left: 1.2rem; }
+.faq-item.open .faq-icon { transform: rotate(45deg); }
+.faq-answer { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+.faq-item.open .faq-answer { max-height: 220px; }
+.faq-answer p { padding-bottom: 1.5rem; font-size: 0.95rem; color: #555; max-width: 620px; }
+
+/* SERVICE AREA BAND */
+.areas-band { background: var(--green); color: var(--white); padding: 3rem 5%; }
+.areas-content { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1.5rem; }
+.areas-content h3 { font-family: 'Antic Slab', serif; font-size: 1.4rem; color: var(--white); }
+.areas-list { display: flex; gap: 1.6rem; font-size: 0.92rem; font-weight: 500; flex-wrap: wrap; }
+.areas-list span { opacity: 0.88; }
+
+/* CONTACT */
+.contact-section { background: var(--tan); padding: 6.5rem 5%; }
+.contact-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5rem; align-items: start; }
+.contact-info h2 { font-family: 'Antic Slab', serif; font-size: 2rem; margin-bottom: 0.8rem; }
+.contact-info p.section-sub { margin-bottom: 1rem; }
+.privacy-note { font-size: 0.82rem; opacity: 0.7; margin-top: -0.2rem; }
+.contact-detail { margin-top: 2rem; }
+.contact-detail div { margin-bottom: 0.6rem; font-size: 0.95rem; }
+.contact-detail strong { display: inline-block; min-width: 90px; color: var(--green); font-weight: 600; }
+
+.contact-form { background: var(--white); border-radius: 6px; padding: 2.4rem; border: 1px solid var(--border); }
+.form-group { margin-bottom: 1.2rem; }
+.form-group label { display: block; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; margin-bottom: 0.4rem; color: var(--charcoal); }
+.form-group input, .form-group textarea {
+  width: 100%; padding: 0.75rem 0.9rem; border: 1px solid var(--border); border-radius: 3px;
+  font-family: 'DM Sans', sans-serif; font-size: 0.95rem; background: var(--tan-light);
+}
+.form-group input:focus, .form-group textarea:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+.form-submit {
+  background: var(--green); color: var(--white); border: none; padding: 0.9rem 2rem;
+  border-radius: 3px; font-weight: 600; font-size: 0.85rem; letter-spacing: 0.06em;
+  text-transform: uppercase; cursor: pointer; transition: background 0.2s; width: 100%;
+}
+.form-submit:hover { background: var(--charcoal); }
+
+/* FOOTER */
+footer { background: var(--charcoal); color: var(--white); padding: 3rem 5% 1.5rem; }
+.footer-top { display: flex; justify-content: space-between; align-items: center; padding-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.1); flex-wrap: wrap; gap: 1.5rem; }
+.footer-logo-text { font-family: 'Antic Slab', serif; font-size: 1.5rem; color: var(--white); }
+.footer-logo-text span { color: var(--green-light); }
+.footer-links { display: flex; gap: 2rem; font-size: 0.92rem; }
+.footer-links a { color: rgba(255,255,255,0.7); }
+.footer-links a:hover { color: var(--white); }
+.footer-social { display: flex; align-items: center; gap: 0.6rem; }
+.footer-social a { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+  border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; color: rgba(255,255,255,0.5); transition: all 0.2s; }
+.footer-social a:hover { border-color: var(--green-light); color: var(--green-light); }
+.footer-bottom { padding-top: 1.5rem; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.45); }
+.footer-bottom a { color: rgba(255,255,255,0.4); }
+.footer-bottom a:hover { color: rgba(255,255,255,0.7); }
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .nav-toggle { display: flex; }
+  .nav-links {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--tan-light);
+    border-bottom: 1.5px solid var(--border); flex-direction: column; align-items: flex-start; gap: 0; padding: 0.5rem 5% 1.5rem;
+  }
+  .nav-links.open { display: flex; }
+  .nav-links a { display: block; padding: 0.8rem 0; width: 100%; border-bottom: 1px solid rgba(0,0,0,0.06); }
+  .nav-links .nav-cta { margin-top: 0.8rem; text-align: center; border-bottom: none; }
+
+  .services-grid, .why-grid { grid-template-columns: 1fr; }
+  .portfolio-grid { grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, 220px); }
+  .portfolio-item:nth-child(1) { grid-column: span 2; grid-row: span 1; }
+  .timeline-steps { grid-template-columns: 1fr 1fr; gap: 2.2rem 1.4rem; }
+  .about-teaser { grid-template-columns: 1fr; padding: 2rem; }
+  .about-teaser img { max-width: 260px; margin: 0 auto; }
+  .contact-wrap { grid-template-columns: 1fr; }
+  .areas-content { flex-direction: column; align-items: flex-start; }
+  .footer-top { flex-direction: column; align-items: flex-start; }
+  .section { padding: 4.5rem 5%; }
+}
+@media (max-width: 540px) {
+  .timeline-steps { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 2.2rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#"><span class="logo-text">Bevel <span>Builders</span></span></a>
+  <button class="nav-toggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+  <ul class="nav-links">
+    <li><a href="#services">Services</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><a href="#process">Process</a></li>
+    <li><a href="projects.html">Projects</a></li>
+    <li><a href="estimator.html">Estimator</a></li>
+    <li><a href="#contact" class="nav-cta">Request Quote / Contact</a></li>
+  </ul>
+</nav>
+
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-eyebrow">El Dorado Hills · Sacramento · Folsom · Roseville · Granite Bay</div>
+    <h1>A contractor you can actually trust.</h1>
+    <p>Bevel Builders is a licensed general contractor bringing honesty, craftsmanship, and a partner who shows up — to every kitchen remodel, room addition, and bathroom renovation across Sacramento, El Dorado, and Placer Counties.</p>
+    <div class="hero-actions">
+      <a href="#contact" class="btn-primary">Request a Quote</a>
+      <a href="projects.html" class="btn-secondary">View Our Projects</a>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="services">
+  <div class="section-header">
+    <div class="section-eyebrow">What We Do</div>
+    <h2 class="section-title">Full-service general contracting, start to finish</h2>
+    <p class="section-sub">From first conversation to final walkthrough, we manage every phase of your project — no juggling subcontractors, no surprise change orders.</p>
+  </div>
+  <div class="services-grid">
+    <div class="service-card">
+      <div class="service-icon">🏠</div>
+      <h3>Remodeling &amp; Renovations</h3>
+      <p>Kitchens, bathrooms, room additions, and whole-home remodels — designed around how your family actually lives.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-icon">📐</div>
+      <h3>Design &amp; Planning</h3>
+      <p>Layout planning, material selection, and permitting handled in-house — from a rough idea to a buildable plan.</p>
+    </div>
+    <div class="service-card">
+      <div class="service-icon">🔨</div>
+      <h3>General Contracting</h3>
+      <p>Licensed, bonded, and fully insured — CA General Contractor License #1113839. One point of contact, start to finish.</p>
+    </div>
+  </div>
+</section>
+
+<section class="process-section" id="process">
+  <div class="section-header">
+    <div class="section-eyebrow">Our Process</div>
+    <h2 class="section-title">Measured twice, built once</h2>
+    <p class="section-sub">A straightforward path from first conversation to finished space — clear communication and an honest timeline at every step.</p>
+  </div>
+  <div class="ruler">
+    <div class="ruler-marks">
+      <span class="major"></span><span></span><span></span><span></span>
+      <span class="major"></span><span></span><span></span><span></span>
+      <span class="major"></span><span></span><span></span><span></span>
+      <span class="major"></span>
+    </div>
+    <div class="timeline-steps">
+      <div class="timeline-step">
+        <div class="step-mark">0″ — Consult</div>
+        <h4>Free Consultation</h4>
+        <p>We walk the space, talk through your goals, and give you an honest read on scope and budget.</p>
+      </div>
+      <div class="timeline-step">
+        <div class="step-mark">8″ — Design</div>
+        <h4>Design &amp; Scope</h4>
+        <p>Drawings, material selections, and a detailed estimate, so you know exactly what you're getting.</p>
+      </div>
+      <div class="timeline-step">
+        <div class="step-mark">16″ — Build</div>
+        <h4>Construction</h4>
+        <p>Our team executes the plan with regular updates, so you're never wondering what's happening next.</p>
+      </div>
+      <div class="timeline-step">
+        <div class="step-mark">24″ — Finish</div>
+        <h4>Walkthrough &amp; Handoff</h4>
+        <p>A final walkthrough together, punch-list items closed out, and a space ready to live in.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="portfolio" style="text-align:center;">
+  <div class="section-header center">
+    <div class="section-eyebrow">Recent Projects</div>
+    <h2 class="section-title">A few spaces we've helped build</h2>
+    <p class="section-sub">From kitchen remodels to full additions — take a look at what we've built for clients across Sacramento, El Dorado Hills, and Placer County.</p>
+  </div>
+  <a href="projects.html" class="btn-primary" style="display:inline-block;">View Our Projects</a>
+</section>
+
+<section class="section" style="background:var(--white);">
+  <div class="section-header center">
+    <div class="section-eyebrow">Why Bevel</div>
+    <h2 class="section-title">What sets us apart</h2>
+  </div>
+  <div class="why-grid">
+    <div class="why-card">
+      <div class="num">15+ Years</div>
+      <h3>Commercial-Grade Experience</h3>
+      <p>Our founder spent 15 years managing commercial construction — schools, hospitals, and corporate campuses — before bringing that rigor home to residential projects.</p>
+    </div>
+    <div class="why-card">
+      <div class="num">Licensed &amp; Insured</div>
+      <h3>Fully Bonded, CA Lic. #1113839</h3>
+      <p>Licensed, bonded, and fully insured general contractor. Every team member is vetted for skill and character — no subpar finishes, no excuses.</p>
+    </div>
+    <div class="why-card">
+      <div class="num">Local &amp; Selective</div>
+      <h3>A Limited Number of Projects</h3>
+      <p>We deliberately take on a limited number of projects at a time, so every client gets the attention and communication their project deserves.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--tan-light);">
+  <div class="about-teaser">
+    <img src="amon-headshot.jpg" alt="Amon Fairey, founder of Bevel Builders, Inc.">
+    <div class="about-teaser-text">
+      <h2>Meet Amon, Your Contractor</h2>
+      <p>Bevel Builders was founded on a simple idea: construction clients deserve honesty, craftsmanship, and a partner who shows up. After 15 years in commercial construction management across the Bay Area and Sacramento, founder Amon Fairey came back to his roots — helping families create a home.</p>
+      <a href="about.html" class="about-link">Read Amon's Story →</a>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="faq">
+  <div class="section-header">
+    <div class="section-eyebrow">F.A.Q.</div>
+    <h2 class="section-title">Common questions</h2>
+  </div>
+  <div class="faq-list">
+    <div class="faq-item open">
+      <button class="faq-question">How long does a typical remodel take? <span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Most kitchen and bathroom remodels run 6–10 weeks once design, permitting, and material selections are finalized. Larger additions or whole-home projects take longer, and we'll give you a realistic timeline during your consultation.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question">Are you licensed and insured? <span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Yes — Bevel Builders is fully licensed (CA General Contractor License #1113839), bonded, and carries general liability and workers' compensation insurance. Documentation available on request.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question">Do you handle permits and inspections? <span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Yes. We manage permitting and coordinate all required inspections as part of our general contracting service — including navigating municipalities that often intimidate smaller contractors.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question">Do I need my own designer or architect? <span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>Not necessarily. Many clients come to us with just an idea or some inspiration photos, and we help develop the design and scope from there. If your project needs an architect, we're happy to work alongside one you've already hired.</p></div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-question">What areas do you serve? <span class="faq-icon">+</span></button>
+      <div class="faq-answer"><p>We proudly serve homeowners and businesses throughout Sacramento County, El Dorado County, and Placer County — including El Dorado Hills, Folsom, Roseville, Granite Bay, and Cameron Park.</p></div>
+    </div>
+  </div>
+</section>
+
+<div class="areas-band">
+  <div class="areas-content">
+    <h3>Proudly serving the Sacramento region</h3>
+    <div class="areas-list">
+      <span>El Dorado Hills</span>
+      <span>Sacramento</span>
+      <span>Folsom</span>
+      <span>Roseville</span>
+      <span>Granite Bay</span>
+      <span>Cameron Park</span>
+    </div>
+  </div>
+</div>
+
+<section class="contact-section" id="contact">
+  <div class="contact-wrap">
+    <div class="contact-info">
+      <div class="section-eyebrow">Get In Touch</div>
+      <h2>Request an Estimate</h2>
+      <p class="section-sub">Tell us about your project and we'll get back to you within one business day with next steps and a no-obligation consultation.</p>
+      <p class="privacy-note">📋 No spam. No drip campaigns. No "just checking in!" emails from a robot named Dave. We only collect what you send us, we only use it to call you back, and we definitely don't sell it to anyone. The form also has built-in bot filtering — so if you <em>are</em> a bot, congratulations on reading this far, but it won't work. We build things for humans. 🤝</p>
+      <div class="contact-detail">
+        <div><strong>Phone</strong> (916) 572-4818</div>
+        <div><strong>Service Area</strong> Sacramento, El Dorado &amp; Placer Counties</div>
+        <div><strong>License</strong> CA General Contractor #1113839</div>
+        <div><strong>Hours</strong> Monday – Friday</div>
+      </div>
+    </div>
+    <form class="contact-form">
+      <div class="form-group">
+        <label for="name">Name*</label>
+        <input type="text" id="name" name="name" required>
+      </div>
+      <div class="form-group">
+        <label for="email">Email*</label>
+        <input type="email" id="email" name="email" required>
+      </div>
+      <div class="form-group">
+        <label for="phone">Phone*</label>
+        <input type="tel" id="phone" name="phone" required>
+      </div>
+      <div class="form-group">
+        <label for="message">Message*</label>
+        <textarea id="message" name="message" rows="4" required></textarea>
+      </div>
+      <button type="submit" class="form-submit">Send Message</button>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-top">
+    <span class="footer-logo-text">Bevel <span>Builders</span></span>
+    <div class="footer-links">
+      <a href="#services">Services</a>
+      <a href="about.html">About</a>
+      <a href="#process">Process</a>
+      <a href="projects.html">Projects</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <div class="footer-social">
+      <a href="https://www.instagram.com/bevelbuilders/" target="_blank" rel="noopener" aria-label="Instagram">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+          <circle cx="12" cy="12" r="4"/>
+          <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Bevel Builders, Inc. · CA License #1113839 · Licensed &amp; Insured · Serving Sacramento, El Dorado &amp; Placer Counties</span>
+    <a href="privacy.html">Privacy Policy</a>
+  </div>
+</footer>
+
+<script>
+  var navToggle = document.querySelector('.nav-toggle');
+  var navLinks = document.querySelector('.nav-links');
+  if (navToggle && navLinks) {
+    navToggle.addEventListener('click', function() {
+      navToggle.classList.toggle('open');
+      navLinks.classList.toggle('open');
+    });
+    navLinks.querySelectorAll('a').forEach(function(link) {
+      link.addEventListener('click', function() {
+        navToggle.classList.remove('open');
+        navLinks.classList.remove('open');
+      });
+    });
+  }
+
+  document.querySelectorAll('.faq-question').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var item = btn.parentElement;
+      var wasOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(function(i) { i.classList.remove('open'); });
+      if (!wasOpen) item.classList.add('open');
+    });
+  });
+</script>
+
+</body>
+</html>

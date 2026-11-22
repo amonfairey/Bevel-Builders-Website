@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Antic+Slab&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <title>Patio Cover Rebuild &amp; Full Exterior Repaint — The Pocket, Sacramento CA | Bevel Builders, Inc.</title>
+  <meta name="description" content="Complete patio cover rebuild after significant dry rot and failed roofing, plus a full exterior house repaint. The Pocket, Sacramento, CA.">
+  <link rel="canonical" href="https://bevelbuilders.com/pocket-patio-exterior.html">
+  <style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --tan: #DDD1A9; --tan-dark: #C9BC8E; --tan-light: #EDE5CC;
+    --green: #2E624B; --green-mid: #4A8C6A; --green-light: #82B09A;
+    --black: #000000; --charcoal: #1a1a1a; --white: #FFFFFF; --border: #C2B48A;
+  }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--tan-light); color: var(--black); font-size: 1.05rem; }
+
+  /* NAV */
+  nav { position: fixed; top: 0; width: 100%; z-index: 100; background: rgba(237,229,204,0.97);
+    backdrop-filter: blur(8px); border-bottom: 1.5px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; padding: 0.9rem 5%; }
+  .logo-text { font-family: 'Antic Slab', serif; font-size: 1.45rem; font-weight: 400; color: var(--black); letter-spacing: 0.01em; text-decoration:none; }
+  .logo-text span { color: var(--green); }
+  .nav-links { display: flex; gap: 2.5rem; list-style: none; align-items:center; }
+  .nav-links a { text-decoration: none; color: var(--black); font-size: 0.88rem;
+    letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500; }
+  .nav-links a:hover { color: var(--green); }
+  .nav-cta { background: var(--green) !important; color: var(--white) !important;
+    padding: 0.6rem 1.3rem !important; border-radius: 3px; }
+  .nav-cta:hover { background: var(--charcoal) !important; color: var(--white) !important; }
+
+  /* PAGE HERO */
+  .project-hero { padding: 7rem 5% 3rem; background: var(--charcoal); color: var(--white); }
+  .project-hero .back-link { display: inline-flex; align-items: center; gap: 0.4rem;
+    color: var(--green-light); text-decoration: none; font-size: 0.8rem;
+    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 1.5rem; }
+  .project-hero .back-link:hover { color: var(--white); }
+  .project-label { font-size: 0.72rem; letter-spacing: 0.15em; text-transform: uppercase;
+    color: var(--green-light); margin-bottom: 0.6rem; }
+  .project-title { font-family: 'Antic Slab', serif; font-size: clamp(1.8rem, 4vw, 3rem);
+    line-height: 1.15; margin-bottom: 1rem; }
+  .project-desc { font-size: 1.08rem; color: rgba(255,255,255,0.7); max-width: 640px; line-height: 1.7; }
+
+  /* PHOTO GRID */
+  .photo-section { padding: 3rem 5% 5rem; }
+  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .photo-item { aspect-ratio: 4/3; background-size: cover; background-position: center;
+    border-radius: 4px; position: relative; overflow: hidden; }
+  .photo-item.wide { grid-column: span 2; }
+  .photo-item.tall { grid-row: span 2; }
+  .photo-tag { position: absolute; top: 10px; left: 10px; font-size: 0.65rem; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; border-radius: 2px; }
+  .before-tag { background: #222; color: #fff; }
+  .after-tag { background: var(--green); color: #fff; }
+  .photo-caption { position: absolute; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.6));
+    color: white; font-size: 0.78rem; padding: 1.5rem 0.8rem 0.6rem;
+    opacity: 0; transition: opacity 0.2s; }
+  .photo-item:hover .photo-caption { opacity: 1; }
+
+  /* CTA STRIP */
+  .project-cta { background: var(--green); color: var(--white); padding: 3rem 5%; text-align: center; }
+  .project-cta h3 { font-family: 'Antic Slab', serif; font-size: 1.6rem; margin-bottom: 0.8rem; }
+  .project-cta p { opacity: 0.8; margin-bottom: 1.5rem; }
+  .cta-btn { display: inline-block; background: var(--white); color: var(--green);
+    padding: 0.75rem 2rem; border-radius: 3px; text-decoration: none;
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .cta-btn:hover { background: var(--tan-light); }
+
+  /* FOOTER */
+  footer { background: var(--charcoal); color: var(--white); padding: 3rem 5% 1.5rem; }
+  .footer-top { display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.1); flex-wrap: wrap; gap: 1.5rem; }
+  .footer-logo-text { font-family: 'Antic Slab', serif; font-size: 1.5rem; color: var(--white); text-decoration:none; }
+  .footer-logo-text span { color: var(--green-light); }
+  .footer-links { display: flex; gap: 2rem; font-size: 0.92rem; }
+  .footer-links a { color: rgba(255,255,255,0.7); text-decoration:none; }
+  .footer-links a:hover { color: var(--white); }
+  .footer-social { display: flex; align-items: center; gap: 0.6rem; }
+  .footer-social a { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; color: rgba(255,255,255,0.5);
+    transition: all 0.2s; text-decoration:none; }
+  .footer-social a:hover { border-color: var(--green-light); color: var(--green-light); }
+  .footer-bottom { padding-top: 1.5rem; display: flex; justify-content: space-between; flex-wrap: wrap;
+    gap: 1rem; font-size: 0.85rem; color: rgba(255,255,255,0.45); }
+  .footer-bottom a { color: rgba(255,255,255,0.4); text-decoration:none; }
+  .footer-bottom a:hover { color: rgba(255,255,255,0.7); }
+
+  /* MOBILE NAV */
+  .nav-toggle { display: none; flex-direction: column; justify-content: center; gap: 5px;
+    width: 32px; height: 32px; background: none; border: none; cursor: pointer; padding: 0; }
+  .nav-toggle span { display: block; width: 100%; height: 2px; background: var(--black); transition: all 0.25s ease; }
+  .nav-toggle.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .nav-toggle.open span:nth-child(2) { opacity: 0; }
+  .nav-toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  @media (max-width: 768px) {
+    .nav-toggle { display: flex; }
+    .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--tan-light);
+      border-bottom: 1.5px solid var(--border); flex-direction: column; align-items: flex-start; gap: 0;
+      padding: 0.5rem 5% 1.5rem; }
+    .nav-links.open { display: flex; }
+    .nav-links li { width: 100%; }
+    .nav-links a { display: block; padding: 0.8rem 0; width: 100%; border-bottom: 1px solid rgba(0,0,0,0.06); }
+    .nav-links .nav-cta { margin-top: 0.8rem; text-align: center; border-bottom: none; }
+    nav { position: fixed; }
+    .photo-grid { grid-template-columns: 1fr 1fr; }
+    .photo-item.wide { grid-column: span 2; }
+    .footer-top { flex-direction: column; align-items: flex-start; }
+  }
+  @media (max-width: 500px) {
+    .photo-grid { grid-template-columns: 1fr; }
+    .photo-item.wide { grid-column: span 1; }
+  }
+
+
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html"><span class="logo-text">Bevel <span>Builders</span></span></a>
+  <button class="nav-toggle" aria-label="Toggle navigation"><span></span><span></span><span></span></button>
+  <ul class="nav-links">
+    <li><a href="index.html#services">Services</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><a href="index.html#process">Process</a></li>
+    <li><a href="projects.html">Projects</a></li>
+    <li><a href="estimator.html">Estimator</a></li>
+    <li><a href="index.html#contact" class="nav-cta">Request Quote / Contact</a></li>
+  </ul>
+</nav>
+
+<div class="project-hero">
+  <a href="projects.html" class="back-link">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to Projects
+  </a>
+  <div class="project-label">Patio Cover Rebuild &amp; Exterior Repaint</div>
+  <h1 class="project-title">Patio Cover Rebuild &amp; Full Exterior Repaint</h1>
+  <p class="project-desc">The existing patio cover had significant dry rot and failed roofing, so we rebuilt it completely from new framing up — and refreshed the whole exterior of the home with a fresh coat of paint while we were at it. The Pocket, Sacramento, CA.</p>
+</div>
+
+<div class="photo-section">
+  <div class="photo-grid">
+    <div class="photo-item wide" style="background-image:url('yvonne_before_2.jpg')">
+      <div class="photo-tag before-tag">Before</div>
+      <div class="photo-caption">Existing patio cover — dry rot &amp; failed roofing</div>
+    </div>
+    <div class="photo-item" style="background-image:url('yvonne_during_1.jpg')">
+      <div class="photo-tag before-tag">Before</div>
+      <div class="photo-caption">New framing under construction</div>
+    </div>
+    <div class="photo-item" style="background-image:url('yvonne_after_3.jpg')">
+      <div class="photo-tag after-tag">After</div>
+      <div class="photo-caption">Rebuilt patio cover — finished</div>
+    </div>
+    <div class="photo-item wide" style="background-image:url('yvonne_after_4.jpg')">
+      <div class="photo-tag after-tag">After</div>
+      <div class="photo-caption">New patio cover, full length</div>
+    </div>
+    <div class="photo-item" style="background-image:url('yvonne_after_1.jpg')">
+      <div class="photo-tag after-tag">After</div>
+      <div class="photo-caption">Front exterior — fresh paint</div>
+    </div>
+    <div class="photo-item wide" style="background-image:url('yvonne_after_2.jpg')">
+      <div class="photo-tag after-tag">After</div>
+      <div class="photo-caption">Front exterior — fresh paint, full view</div>
+    </div>
+  </div>
+</div>
+
+<div class="project-cta">
+  <h3>Have a similar project in mind?</h3>
+  <p>We'd love to hear about it. Get in touch for a free, no-obligation consultation.</p>
+  <a href="index.html#contact" class="cta-btn">Request a Quote</a>
+</div>
+
+<footer>
+  <div class="footer-top">
+    <a href="index.html" class="footer-logo-text">Bevel <span>Builders</span></a>
+    <div class="footer-links">
+      <a href="index.html#services">Services</a>
+      <a href="about.html">About</a>
+      <a href="index.html#process">Process</a>
+      <a href="projects.html">Projects</a>
+      <a href="index.html#contact">Contact</a>
+    </div>
+    <div class="footer-social">
+      <a href="https://www.instagram.com/bevelbuilders/" target="_blank" rel="noopener" aria-label="Instagram">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+          <circle cx="12" cy="12" r="4"/>
+          <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 Bevel Builders, Inc. · CA License #1113839 · Licensed &amp; Insured · Serving Sacramento, El Dorado &amp; Placer Counties</span>
+    <a href="privacy.html">Privacy Policy</a>
+  </div>
+</footer>
+
+<script>
+  var navToggle = document.querySelector('.nav-toggle');
+  var navLinks = document.querySelector('.nav-links');
+  if (navToggle && navLinks) {
+    navToggle.addEventListener('click', function() {
+      navToggle.classList.toggle('open');
+      navLinks.classList.toggle('open');
+    });
+    navLinks.querySelectorAll('a').forEach(function(link) {
+      link.addEventListener('click', function() {
+        navToggle.classList.remove('open');
+        navLinks.classList.remove('open');
+      });
+    });
+  }
+</script>
+
+</body>
+</html>

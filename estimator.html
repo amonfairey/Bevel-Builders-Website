@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Cost Estimator | Bevel Builders, Inc.</title>
+<link rel="canonical" href="https://bevelbuilders.com/estimator.html">
+<meta name="description" content="Get a free planning estimate for your kitchen remodel, bathroom renovation, ADU, or new home build. Bevel Builders, Inc. — CA License #1113839.">
+<link href="https://fonts.googleapis.com/css2?family=Antic+Slab&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --tan:         #DDD1A9;
+  --tan-dark:    #C9BC8E;
+  --tan-light:   #EDE5CC;
+  --green:       #2E624B;
+  --green-mid:   #4A8C6A;
+  --green-light: #82B09A;
+  --black:       #000000;
+  --charcoal:    #1a1a1a;
+  --white:       #FFFFFF;
+  --border:      #C2B48A;
+  --ink-soft:    #5a5a4a;
+  --card:        #FFFFFF;
+  --rule:        #D6CDB0;
+  --rule-soft:   #E8E0CC;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--tan-light);
+  color: var(--black);
+  overflow-x: hidden;
+}
+
+/* NAV */
+nav {
+  position: fixed; top: 0; width: 100%; z-index: 100;
+  background: rgba(237,229,204,0.97);
+  backdrop-filter: blur(8px);
+  border-bottom: 1.5px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.9rem 5%;
+}
+
+.logo-text { font-family: 'Antic Slab', serif; font-size: 1.45rem; font-weight: 400; color: var(--black); letter-spacing: 0.01em; text-decoration: none; }
+.logo-text span { color: var(--green); }
+
+.nav-links { display: flex; gap: 2.5rem; list-style: none; }
+
+.nav-links a {
+  text-decoration: none;
+  color: var(--charcoal);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 0.2s;
+}
+
+.nav-links a:hover { color: var(--green); }
+
+.nav-cta {
+  background: var(--green) !important;
+  color: var(--white) !important;
+  padding: 0.55rem 1.3rem;
+  border-radius: 2px;
+  transition: background 0.2s !important;
+}
+
+.nav-cta:hover { background: var(--black) !important; }
+
+/* hamburger */
+.hamburger {
+  display: none;
+  background: none; border: none; cursor: pointer; padding: 0.4rem;
+  flex-direction: column; gap: 5px;
+}
+.hamburger span {
+  display: block; width: 24px; height: 2px;
+  background: var(--charcoal); border-radius: 2px;
+  transition: all 0.2s;
+}
+@media (max-width: 768px) {
+  .hamburger { display: flex; }
+  .nav-links {
+    display: none; flex-direction: column; gap: 0;
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: rgba(237,229,204,0.99);
+    border-bottom: 1.5px solid var(--border);
+    padding: 1rem 5%;
+  }
+  .nav-links.open { display: flex; }
+  .nav-links li { padding: 0.7rem 0; border-bottom: 1px solid var(--rule); }
+  .nav-links li:last-child { border-bottom: none; }
+  .nav-cta { background: transparent !important; color: var(--green) !important; padding: 0 !important; }
+}
+
+/* PAGE INTRO */
+.page-intro {
+  padding: 7rem 8% 3rem;
+  max-width: 760px;
+}
+
+.page-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--green);
+  margin-bottom: 1rem;
+  display: flex; align-items: center; gap: 0.8rem;
+}
+
+.page-eyebrow::before {
+  content: '';
+  display: block; width: 40px; height: 1.5px;
+  background: var(--green);
+}
+
+.page-title {
+  font-family: 'Antic Slab', serif;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.15;
+  margin-bottom: 1rem;
+}
+
+.page-sub {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: #444;
+  font-weight: 300;
+  max-width: 600px;
+}
+
+/* TABS */
+.tab-bar {
+  display: flex;
+  border-bottom: 1.5px solid var(--border);
+  padding: 0 8%;
+  gap: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab-btn {
+  background: none; border: none; cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 0.9rem 1.5rem;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1.5px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover { color: var(--green); }
+.tab-btn.active { color: var(--green); border-bottom-color: var(--green); }
+
+/* CONTENT PANELS */
+.tab-panel { display: none; padding: 3rem 8% 6rem; }
+.tab-panel.active { display: block; }
+
+/* ESTIMATOR LAYOUT (kitchen detail layout) */
+.estimator-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  align-items: start;
+}
+@media (min-width: 980px) {
+  .estimator-layout { grid-template-columns: minmax(0,1fr) 360px; gap: 4rem; }
+}
+
+/* FORM STEPS */
+.step {
+  border-top: 1px solid var(--border);
+  padding: 2rem 0 0.5rem;
+}
+.step:first-child { border-top: none; padding-top: 0; }
+
+.step > h2 {
+  font-family: 'Antic Slab', serif;
+  font-size: 1.3rem;
+  font-weight: 400;
+  margin-bottom: 0.3rem;
+}
+
+.step > .hint {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  margin-bottom: 1.4rem;
+  max-width: 32rem;
+  line-height: 1.6;
+}
+
+.field { margin-bottom: 1.2rem; }
+
+.field label {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 500;
+  margin-bottom: 0.4rem;
+}
+
+.field .sub { font-weight: 400; color: var(--ink-soft); }
+
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+input[type=number], select {
+  width: 100%;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  color: var(--charcoal);
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.65rem 0.8rem;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='%235a5a4a' stroke-width='1.5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 2rem;
+}
+
+input[type=number]:focus, select:focus {
+  outline: 2px solid var(--green);
+  outline-offset: 1px;
+}
+
+.check {
+  display: flex; gap: 0.7rem; align-items: flex-start;
+  padding: 0.55rem 0; cursor: pointer; font-size: 0.9rem;
+}
+.check input {
+  margin: 3px 0 0;
+  accent-color: var(--green);
+  width: 16px; height: 16px; flex: none;
+}
+
+.checks {
+  border-top: 1px solid var(--rule-soft);
+  margin-top: 0.3rem; padding-top: 0.3rem;
+}
+.checks .check { border-bottom: 1px solid var(--rule-soft); }
+.checks .check:last-child { border-bottom: none; }
+
+/* ESTIMATE SHEET (sticky sidebar) */
+.sheet {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 1.6rem 1.4rem 1.4rem;
+}
+@media (min-width: 980px) { .sheet { position: sticky; top: 90px; } }
+
+.sheet-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 0.4rem;
+}
+
+.sheet-total {
+  font-family: 'Antic Slab', serif;
+  font-size: clamp(1.5rem, 3.5vw, 2rem);
+  line-height: 1.1;
+  margin-bottom: 0.3rem;
+}
+
+.sheet-psf { font-size: 0.8rem; color: var(--ink-soft); margin-bottom: 1.2rem; }
+
+.dim-rule {
+  display: block; width: 100%; height: 9px;
+  margin: 1rem 0; color: var(--border);
+}
+
+.lines { font-size: 0.85rem; }
+
+.line {
+  display: flex; justify-content: space-between; gap: 0.8rem;
+  padding: 0.55rem 0; border-bottom: 1px solid var(--rule-soft);
+}
+.line:last-of-type { border-bottom: none; }
+.line .name { font-weight: 500; }
+.line .note {
+  display: block; font-weight: 400;
+  font-size: 0.75rem; color: var(--ink-soft);
+}
+.line .amt {
+  white-space: nowrap; text-align: right;
+  color: var(--ink-soft); font-variant-numeric: tabular-nums;
+}
+.empty { font-size: 0.85rem; color: var(--ink-soft); }
+
+.send { margin-top: 1.2rem; }
+.send label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.4rem; }
+.send-row { display: flex; gap: 0.5rem; }
+
+input[type=email] {
+  flex: 1; min-width: 0;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem; color: var(--charcoal);
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 2px; padding: 0.65rem 0.8rem;
+}
+
+.btn-send {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem; font-weight: 500;
+  letter-spacing: 0.06em;
+  background: var(--green); color: var(--white);
+  border: none; border-radius: 2px;
+  padding: 0.65rem 1.1rem; cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.btn-send:hover { background: var(--black); }
+
+.send-err { font-size: 0.8rem; color: #8C2F22; margin-top: 0.4rem; min-height: 1px; }
+.send-ok  { font-size: 0.8rem; color: var(--green); margin-top: 0.4rem; }
+
+.sheet-foot {
+  border-top: 1px solid var(--border);
+  margin-top: 1rem; padding-top: 0.9rem;
+  font-size: 0.75rem; color: var(--ink-soft); line-height: 1.6;
+}
+
+/* MOBILE BAR */
+.mob-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  background: var(--white); border-top: 1px solid var(--border);
+  padding: 0.75rem 1.5rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+.mob-bar .l { font-size: 0.75rem; color: var(--ink-soft); margin: 0; }
+.mob-bar .v {
+  font-family: 'Antic Slab', serif; font-size: 1.1rem;
+  font-variant-numeric: tabular-nums; margin: 0;
+}
+.mob-bar .see { font-size: 0.85rem; color: var(--green); text-decoration: underline; white-space: nowrap; }
+@media (min-width: 980px) { .mob-bar { display: none !important; } }
+@media (max-width: 979px) { body { padding-bottom: 72px; } }
+
+/* SIMPLE TAB LAYOUTS (bath/adu/newbuild) */
+.simple-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  align-items: start;
+}
+@media (min-width: 980px) {
+  .simple-layout { grid-template-columns: minmax(0,1fr) 360px; gap: 4rem; }
+}
+
+.result-box {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 1.6rem 1.4rem;
+}
+@media (min-width: 980px) { .result-box { position: sticky; top: 90px; } }
+
+.result-label {
+  font-size: 0.75rem; font-weight: 500;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--ink-soft); margin-bottom: 0.4rem;
+}
+
+.result-range {
+  font-family: 'Antic Slab', serif;
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  line-height: 1.15; margin-bottom: 0.8rem;
+}
+
+.result-breakdown {
+  font-size: 0.82rem;
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 0.8rem;
+  margin-top: 0.8rem;
+}
+.rb-line {
+  display: flex; justify-content: space-between; gap: 0.8rem;
+  padding: 0.4rem 0; border-bottom: 1px solid var(--rule-soft);
+  color: var(--ink-soft);
+}
+.rb-line:last-of-type { border-bottom: none; }
+.rb-line .rbl { font-weight: 500; color: var(--charcoal); }
+
+.result-disclaimer {
+  margin-top: 1rem; padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem; color: var(--ink-soft); line-height: 1.6;
+}
+
+.cta-row { margin-top: 1.5rem; }
+.btn-primary {
+  display: inline-block;
+  background: var(--green); color: var(--white);
+  padding: 0.75rem 1.5rem;
+  border-radius: 2px; border: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem; font-weight: 500;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  text-decoration: none; cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-primary:hover { background: var(--black); }
+
+/* FORM FIELD GROUP */
+.field-group {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 1.5rem;
+  margin-bottom: 1.2rem;
+}
+.field-group h3 {
+  font-family: 'Antic Slab', serif;
+  font-size: 1.1rem; font-weight: 400;
+  margin-bottom: 0.9rem;
+  color: var(--charcoal);
+}
+
+/* FOOTER */
+footer {
+  background: var(--charcoal);
+  color: rgba(255,255,255,0.65);
+  padding: 2rem 8%;
+  display: flex; align-items: center;
+  flex-wrap: wrap; gap: 1rem;
+  font-size: 0.8rem;
+}
+.footer-logo-img { height: 32px; filter: brightness(0) invert(1) opacity(0.6); }
+.footer-copy { flex: 1; min-width: 200px; }
+.footer-social a { color: rgba(255,255,255,0.5); transition: color 0.2s; }
+.footer-social a:hover { color: var(--white); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html"><span class="logo-text">Bevel <span>Builders</span></span></a>
+  <button class="hamburger" id="menuBtn" aria-label="Open menu">
+    <span></span><span></span><span></span>
+  </button>
+  <ul class="nav-links" id="navLinks">
+    <li><a href="index.html#services">Services</a></li>
+    <li><a href="about.html">About</a></li>
+    <li><a href="index.html#process">Process</a></li>
+    <li><a href="projects.html">Projects</a></li>
+    <li><a href="estimator.html">Estimator</a></li>
+    <li><a href="index.html#contact" class="nav-cta">Request Quote</a></li>
+  </ul>
+</nav>
+
+<!-- PAGE INTRO -->
+<div class="page-intro">
+  <div class="page-eyebrow">Free Planning Tool</div>
+  <h1 class="page-title">What will your project actually cost?</h1>
+  <p class="page-sub">Get a working budget range before we ever meet. Answer a few questions about scope and finish level — we'll break every line out the same way we would on a real estimate. These are planning numbers, not quotes, but they're built on how we actually price jobs in the Sacramento area.</p>
+</div>
+
+<!-- TABS -->
+<div class="tab-bar" role="tablist">
+  <button class="tab-btn active" role="tab" aria-selected="true"  data-tab="kitchen">Kitchen Remodel</button>
+  <button class="tab-btn"        role="tab" aria-selected="false" data-tab="bath">Bathroom</button>
+  <button class="tab-btn"        role="tab" aria-selected="false" data-tab="adu">ADU / Addition</button>
+  <button class="tab-btn"        role="tab" aria-selected="false" data-tab="newbuild">New Home Build</button>
+</div>
+
+<!-- ============================================================
+     KITCHEN TAB
+     ============================================================ -->
+<div class="tab-panel active" id="tab-kitchen">
+  <div class="estimator-layout">
+
+    <form id="k-planner" novalidate>
+
+      <section class="step">
+        <h2>Cabinets</h2>
+        <p class="hint">Measure along the wall at countertop height. A typical 12×14 kitchen runs about 20 lineal feet of base cabinets.</p>
+        <div class="field">
+          <label for="k-baseLF">Base cabinets <span class="sub">— lineal feet</span></label>
+          <input type="number" id="k-baseLF" value="20" min="0" max="200" step="1">
+        </div>
+        <div class="field">
+          <label for="k-wallLF">Wall cabinets <span class="sub">— lineal feet</span></label>
+          <input type="number" id="k-wallLF" value="15" min="0" max="200" step="1">
+        </div>
+        <div class="field">
+          <label for="k-tall">Pantry and tall cabinets <span class="sub">— how many</span></label>
+          <input type="number" id="k-tall" value="1" min="0" max="20" step="1">
+        </div>
+        <div class="field">
+          <label for="k-grade">Construction and finish level</label>
+          <select id="k-grade">
+            <option value="stock">Pre-manufactured — stock sizes, laminate or thermofoil</option>
+            <option value="semi" selected>Semi-custom — modified sizes, painted or stained wood</option>
+            <option value="custom">Custom — built to your dimensions, full-access</option>
+            <option value="high">High custom — furniture-grade, specialty finishes</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="step">
+        <h2>Island</h2>
+        <p class="hint">Choosing a size sets the cabinetry and countertop area automatically.</p>
+        <div class="field">
+          <label for="k-island">Size</label>
+          <select id="k-island">
+            <option value="none">No island</option>
+            <option value="s36" selected>3′ × 6′ — prep and storage</option>
+            <option value="s47">4′ × 7′ — prep with two seats</option>
+            <option value="s48">4′ × 8′ — prep with three seats</option>
+            <option value="s410">4′ × 10′ — prep, seating, and appliance</option>
+            <option value="two48">Two islands — 4′ × 8′ each</option>
+          </select>
+        </div>
+        <div class="field" id="k-wfField">
+          <label for="k-waterfall">Waterfall ends <span class="sub">— stone running down to the floor</span></label>
+          <select id="k-waterfall">
+            <option value="0">None</option>
+            <option value="1">One end</option>
+            <option value="2">Both ends</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="step">
+        <h2>Countertops</h2>
+        <p class="hint">We calculate area from your cabinet runs at 25½ inches deep, then add fabrication waste.</p>
+        <div class="field">
+          <label for="k-counter">Material</label>
+          <select id="k-counter">
+            <option value="lam">Laminate</option>
+            <option value="butcher">Butcher block</option>
+            <option value="granite">Granite</option>
+            <option value="quartz" selected>Quartz</option>
+            <option value="quartzite">Quartzite</option>
+            <option value="marble">Marble</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="step">
+        <h2>Flooring</h2>
+        <p class="hint">Room dimensions, not cabinet runs. Add adjoining areas if the floor continues into another space.</p>
+        <div class="field">
+          <div class="pair">
+            <div>
+              <label for="k-rlen">Room length <span class="sub">— feet</span></label>
+              <input type="number" id="k-rlen" value="14" min="0" max="100" step="0.5">
+            </div>
+            <div>
+              <label for="k-rwid">Room width <span class="sub">— feet</span></label>
+              <input type="number" id="k-rwid" value="12" min="0" max="100" step="0.5">
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="k-adj">Adjoining areas to match <span class="sub">— sq ft, leave at zero if none</span></label>
+          <input type="number" id="k-adj" value="0" min="0" max="5000" step="10">
+        </div>
+        <div class="field">
+          <label for="k-floor">New material</label>
+          <select id="k-floor">
+            <option value="none">Keeping the existing floor</option>
+            <option value="lvp" selected>Luxury vinyl plank</option>
+            <option value="laminate">Laminate</option>
+            <option value="eng">Engineered hardwood</option>
+            <option value="solid">Solid hardwood</option>
+            <option value="tile">Tile</option>
+          </select>
+        </div>
+        <div class="field" id="k-oldField">
+          <label for="k-oldfloor">What's down there now</label>
+          <select id="k-oldfloor">
+            <option value="vinyl" selected>Vinyl, linoleum, or carpet</option>
+            <option value="wood">Laminate or wood</option>
+            <option value="tile">Tile set in mortar</option>
+          </select>
+        </div>
+        <div class="field" id="k-deductField">
+          <label class="check">
+            <input type="checkbox" id="k-deduct" checked>
+            Stop the floor at the cabinets rather than running it wall to wall
+          </label>
+        </div>
+      </section>
+
+      <section class="step">
+        <h2>Appliances</h2>
+        <p class="hint">Brands are examples of where each line typically lands. Many makers span more than one level.</p>
+        <div class="field">
+          <label for="k-appl">Level</label>
+          <select id="k-appl">
+            <option value="none">Keeping our current appliances</option>
+            <option value="builder">Builder — Whirlpool, Frigidaire, base GE</option>
+            <option value="mid" selected>Mid — Bosch 500, KitchenAid, GE Café</option>
+            <option value="upper">Upper — Thermador, Monogram, JennAir</option>
+            <option value="lux">Luxury — Sub-Zero, Wolf, Gaggenau</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="k-cook">Cooking setup</label>
+          <select id="k-cook">
+            <option value="range" selected>Slide-in range</option>
+            <option value="split">Separate cooktop and wall oven</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="check">
+            <input type="checkbox" id="k-panel">
+            Panel-ready refrigeration so the fridge matches the cabinets
+          </label>
+        </div>
+      </section>
+
+      <section class="step">
+        <h2>Everything else</h2>
+        <p class="hint">Uncheck anything already handled or outside scope.</p>
+        <div class="checks" id="k-extras"></div>
+      </section>
+
+    </form>
+
+    <aside>
+      <div class="sheet">
+        <p class="sheet-label">Working budget range</p>
+        <p class="sheet-total" id="k-total">—</p>
+        <p class="sheet-psf" id="k-psf"></p>
+
+        <svg class="dim-rule" viewBox="0 0 300 9" preserveAspectRatio="none" aria-hidden="true">
+          <line x1="1" y1="1" x2="1" y2="8" stroke="currentColor" stroke-width="1"/>
+          <line x1="1" y1="4.5" x2="299" y2="4.5" stroke="currentColor" stroke-width="1"/>
+          <line x1="299" y1="1" x2="299" y2="8" stroke="currentColor" stroke-width="1"/>
+        </svg>
+
+        <div class="lines" id="k-lines"></div>
+
+        <div class="send">
+          <label for="k-email">Send this estimate to yourself</label>
+          <div class="send-row">
+            <input type="email" id="k-email" placeholder="name@email.com" autocomplete="email">
+            <button type="button" class="btn-send" id="k-sendBtn">Send</button>
+          </div>
+          <p class="send-err" id="k-emailErr" role="alert"></p>
+        </div>
+
+        <p class="sheet-foot">This is a planning range, not a quote. Final pricing depends on layout, site conditions, and material selections. We'll walk through it with you in detail — no commitment required.</p>
+      </div>
+
+      <div class="cta-row" style="margin-top:1rem;">
+        <a href="index.html#contact" class="btn-primary">Talk to Us About Your Kitchen</a>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ============================================================
+     BATHROOM TAB
+     ============================================================ -->
+<div class="tab-panel" id="tab-bath">
+  <div class="simple-layout">
+    <div>
+      <div class="field-group">
+        <h3>Project type</h3>
+        <div class="field">
+          <label for="b-type">What are you renovating?</label>
+          <select id="b-type">
+            <option value="half">Half bath (powder room) — toilet and sink only</option>
+            <option value="guest" selected>Full guest bath — tub/shower, toilet, vanity</option>
+            <option value="master">Master bath — walk-in shower, soaking tub, double vanity</option>
+            <option value="master_lux">Master bath — luxury spa, steam, radiant heat, full tile</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="b-size">Approximate square footage</label>
+          <select id="b-size">
+            <option value="small">Under 50 sq ft — compact</option>
+            <option value="med" selected>50–80 sq ft — standard</option>
+            <option value="large">80–130 sq ft — generous</option>
+            <option value="xl">130+ sq ft — large master</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>Finish level</h3>
+        <div class="field">
+          <label for="b-finish">Materials and fixtures</label>
+          <select id="b-finish">
+            <option value="builder">Builder — standard tile, builder-grade fixtures</option>
+            <option value="mid" selected>Mid — designer tile, Kohler/Moen, frameless glass</option>
+            <option value="high">High — large-format tile, Brizo/Grohe, niche details</option>
+            <option value="lux">Luxury — custom tile work, Watermark/Dornbracht, steam</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>Scope inclusions</h3>
+        <p class="hint" style="margin-bottom:1rem;">Uncheck anything already done or out of scope.</p>
+        <div class="checks" id="b-extras">
+          <label class="check"><input type="checkbox" id="b-demo" checked> Demolition and disposal</label>
+          <label class="check"><input type="checkbox" id="b-plumb" checked> Plumbing — rough and finish</label>
+          <label class="check"><input type="checkbox" id="b-elec" checked> Electrical — GFCI, fan, lighting</label>
+          <label class="check"><input type="checkbox" id="b-tile" checked> Tile — walls and floors</label>
+          <label class="check"><input type="checkbox" id="b-vanity" checked> Vanity and mirrors</label>
+          <label class="check"><input type="checkbox" id="b-fixtures" checked> Fixtures and hardware</label>
+          <label class="check"><input type="checkbox" id="b-niche"> Shower niche(s)</label>
+          <label class="check"><input type="checkbox" id="b-heat"> Radiant floor heat</label>
+          <label class="check"><input type="checkbox" id="b-window"> Window replacement</label>
+        </div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="result-box">
+        <p class="result-label">Working budget range</p>
+        <p class="result-range" id="b-total">—</p>
+        <div class="result-breakdown" id="b-breakdown"></div>
+        <div class="send" style="margin-top:1rem;">
+          <label for="b-email">Send this estimate to yourself</label>
+          <div class="send-row">
+            <input type="email" id="b-email" placeholder="name@email.com" autocomplete="email">
+            <button type="button" class="btn-send" id="b-sendBtn">Send</button>
+          </div>
+          <p class="send-err" id="b-emailErr" role="alert"></p>
+        </div>
+        <p class="result-disclaimer">Planning range only — not a quote. Final cost depends on existing conditions, layout changes, and your specific selections.</p>
+      </div>
+      <div class="cta-row" style="margin-top:1rem;">
+        <a href="index.html#contact" class="btn-primary">Talk to Us About Your Bathroom</a>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ============================================================
+     ADU / ADDITION TAB
+     ============================================================ -->
+<div class="tab-panel" id="tab-adu">
+  <div class="simple-layout">
+    <div>
+      <div class="field-group">
+        <h3>Project type</h3>
+        <div class="field">
+          <label for="a-type">What are you building?</label>
+          <select id="a-type">
+            <option value="attached" selected>Attached addition — room(s) added to existing home</option>
+            <option value="detached_adu">Detached ADU — separate living unit on the property</option>
+            <option value="garage_adu">Garage conversion ADU</option>
+            <option value="junior_adu">Junior ADU — space within the existing home footprint</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="a-sqft">Approximate square footage</label>
+          <select id="a-sqft">
+            <option value="sm">Under 400 sq ft</option>
+            <option value="med" selected>400–700 sq ft</option>
+            <option value="lg">700–1,000 sq ft</option>
+            <option value="xl">1,000+ sq ft</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>Finish level</h3>
+        <div class="field">
+          <label for="a-finish">Interior finishes</label>
+          <select id="a-finish">
+            <option value="standard" selected>Standard — LVP floors, stock cabinets, builder fixtures</option>
+            <option value="mid">Mid — engineered wood, semi-custom cabinets, upgraded bath</option>
+            <option value="high">High — hardwood, custom cabinets, premium bath and kitchen</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>Included systems</h3>
+        <div class="checks" id="a-extras">
+          <label class="check"><input type="checkbox" id="a-kitchen" checked> Kitchenette or full kitchen</label>
+          <label class="check"><input type="checkbox" id="a-bath" checked> Full bathroom</label>
+          <label class="check"><input type="checkbox" id="a-hvac" checked> Separate HVAC / mini-split</label>
+          <label class="check"><input type="checkbox" id="a-panel"> Electrical panel upgrade or sub-panel</label>
+          <label class="check"><input type="checkbox" id="a-permits" checked> Permitting and engineering</label>
+          <label class="check"><input type="checkbox" id="a-site"> Site work / foundation (new detached only)</label>
+        </div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="result-box">
+        <p class="result-label">Working budget range</p>
+        <p class="result-range" id="a-total">—</p>
+        <div class="result-breakdown" id="a-breakdown"></div>
+        <div class="send" style="margin-top:1rem;">
+          <label for="a-email">Send this estimate to yourself</label>
+          <div class="send-row">
+            <input type="email" id="a-email" placeholder="name@email.com" autocomplete="email">
+            <button type="button" class="btn-send" id="a-sendBtn">Send</button>
+          </div>
+          <p class="send-err" id="a-emailErr" role="alert"></p>
+        </div>
+        <p class="result-disclaimer">ADU and addition costs vary significantly by site, municipality permitting fees, and existing conditions. These ranges reflect typical Sacramento-area projects as of 2024–2025.</p>
+      </div>
+      <div class="cta-row" style="margin-top:1rem;">
+        <a href="index.html#contact" class="btn-primary">Discuss Your ADU or Addition</a>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ============================================================
+     NEW HOME BUILD TAB
+     ============================================================ -->
+<div class="tab-panel" id="tab-newbuild">
+  <div class="simple-layout">
+    <div>
+      <div class="field-group">
+        <h3>Home size</h3>
+        <div class="field">
+          <label for="n-sqft">Conditioned square footage</label>
+          <select id="n-sqft">
+            <option value="sm">Under 1,500 sq ft — cottage or starter</option>
+            <option value="med" selected>1,500–2,500 sq ft — family home</option>
+            <option value="lg">2,500–3,500 sq ft — larger family home</option>
+            <option value="xl">3,500–5,000 sq ft — executive home</option>
+            <option value="custom">5,000+ sq ft — custom estate</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="n-stories">Stories</label>
+          <select id="n-stories">
+            <option value="one" selected>Single story</option>
+            <option value="two">Two story</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>Finish level</h3>
+        <div class="field">
+          <label for="n-finish">Specification level</label>
+          <select id="n-finish">
+            <option value="builder">Builder spec — standard package throughout</option>
+            <option value="mid" selected>Mid custom — upgraded kitchen/baths, good finishes</option>
+            <option value="high">High custom — premium materials, custom cabinets, hardwood</option>
+            <option value="lux">Luxury custom — no-compromise build, top-tier everything</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <h3>Site and structure</h3>
+        <div class="checks" id="n-extras">
+          <label class="check"><input type="checkbox" id="n-garage" checked> Attached garage (2-car)</label>
+          <label class="check"><input type="checkbox" id="n-permits" checked> Permitting, engineering, soils</label>
+          <label class="check"><input type="checkbox" id="n-site" checked> Site prep and foundation</label>
+          <label class="check"><input type="checkbox" id="n-solar"> Solar system pre-wired</label>
+          <label class="check"><input type="checkbox" id="n-pool"> Pool / spa rough-in</label>
+          <label class="check"><input type="checkbox" id="n-adu"> Detached ADU or casita</label>
+        </div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="result-box">
+        <p class="result-label">Working budget range</p>
+        <p class="result-range" id="n-total">—</p>
+        <div class="result-breakdown" id="n-breakdown"></div>
+        <div class="send" style="margin-top:1rem;">
+          <label for="n-email">Send this estimate to yourself</label>
+          <div class="send-row">
+            <input type="email" id="n-email" placeholder="name@email.com" autocomplete="email">
+            <button type="button" class="btn-send" id="n-sendBtn">Send</button>
+          </div>
+          <p class="send-err" id="n-emailErr" role="alert"></p>
+        </div>
+        <p class="result-disclaimer">New construction cost per square foot varies widely by design complexity, lot conditions, and current labor markets. These ranges reflect Sacramento-area custom home builds as of 2024–2025 and do not include land.</p>
+      </div>
+      <div class="cta-row" style="margin-top:1rem;">
+        <a href="index.html#contact" class="btn-primary">Start Your Custom Home Conversation</a>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- Mobile bar (kitchen) -->
+<div class="mob-bar" id="k-mobBar">
+  <div>
+    <p class="l">Kitchen estimate</p>
+    <p class="v" id="k-barTotal">—</p>
+  </div>
+  <a class="see" href="#k-lines">See breakdown</a>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <img class="footer-logo-img" src="logo.png" alt="Bevel Builders, Inc.">
+  <span class="footer-copy">© 2025 Bevel Builders, Inc. · CA License #1113839 · Licensed &amp; Insured · Serving Sacramento, El Dorado &amp; Placer Counties</span>
+  <div class="footer-social">
+    <a href="https://www.instagram.com/bevelbuilders/" target="_blank" rel="noopener" aria-label="Instagram">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+        <circle cx="12" cy="12" r="4"/>
+        <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor"/>
+      </svg>
+    </a>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   NAV HAMBURGER
+   ============================================================ */
+document.getElementById('menuBtn').addEventListener('click', function() {
+  document.getElementById('navLinks').classList.toggle('open');
+});
+
+/* ============================================================
+   TAB SWITCHING
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(function(b) {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    });
+    document.querySelectorAll('.tab-panel').forEach(function(p) {
+      p.classList.remove('active');
+    });
+    btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
+    var tabId = 'tab-' + btn.dataset.tab;
+    document.getElementById(tabId).classList.add('active');
+    // show/hide mobile bar
+    document.getElementById('k-mobBar').style.display =
+      btn.dataset.tab === 'kitchen' ? '' : 'none';
+  });
+});
+
+/* ============================================================
+   KITCHEN CALCULATOR
+   ============================================================ */
+const KPRICING = {
+  cabinetPerLF: {
+    stock:  [160, 300], semi:   [300, 550],
+    custom: [550, 900], high:   [900, 1500]
+  },
+  wallCabinetFactor: 0.75,
+  tallEach: {
+    stock:  [700,  1200], semi:   [1300, 2200],
+    custom: [2400, 3800], high:   [4000, 6500]
+  },
+  panelSet: {
+    stock:  [700,  1200], semi:   [900,  1800],
+    custom: [1400, 2600], high:   [2000, 3800]
+  },
+  counterPerSF: {
+    lam:       [30, 55],  butcher: [60, 110],
+    granite:   [65, 130], quartz:  [70, 140],
+    quartzite: [110, 200],marble:  [100, 200]
+  },
+  waterfallEach: [450, 900],
+  noWaterfall: ['lam', 'butcher'],
+  islands: {
+    none:  { cabLF: 0,  topSF: 0,  depth: 0, footprint: 0 },
+    s36:   { cabLF: 9,  topSF: 24, depth: 3, footprint: 18 },
+    s47:   { cabLF: 11, topSF: 36, depth: 4, footprint: 28 },
+    s48:   { cabLF: 13, topSF: 42, depth: 4, footprint: 32 },
+    s410:  { cabLF: 16, topSF: 52, depth: 4, footprint: 40 },
+    two48: { cabLF: 26, topSF: 84, depth: 4, footprint: 64 }
+  },
+  floorPerSF: {
+    none:     [0, 0, 1],    lvp:      [6, 12, 1.10],
+    laminate: [5, 10, 1.10],eng:      [10, 18, 1.10],
+    solid:    [12, 22, 1.13],tile:    [14, 30, 1.12]
+  },
+  tilePrepPerSF: [3, 6],
+  floorRemovalPerSF: { vinyl: [1, 2], wood: [2, 4], tile: [4, 7] },
+  appliances: {
+    none:    [0, 0],       builder: [3500, 6000],
+    mid:     [7500, 13000],upper:   [15000, 28000],
+    lux:     [30000, 70000]
+  },
+  splitCookMultiplier: 1.18,
+  backsplashPerSF: [15, 35],
+  contingency: [0.10, 0.15]
+};
+
+const KEXTRAS = [
+  { id:'demo',    name:'Demolition and disposal',  range:[1500, 3500], on:true },
+  { id:'elec',    name:'Electrical',               range:[1500, 4500], on:true },
+  { id:'plumb',   name:'Plumbing',                 range:[1200, 3500], on:true },
+  { id:'drywall', name:'Drywall and paint',         range:[1200, 3000], on:true },
+  { id:'light',   name:'Light fixtures',            range:[600,  2500], on:true },
+  { id:'splash',  name:'Backsplash',               range:null,         on:true },
+  { id:'sink',    name:'Sink and faucet',           range:[600,  2000], on:true },
+  { id:'vent',    name:'Range hood and venting',    range:[900,  4000], on:true },
+  { id:'window',  name:'New window or door',        range:[1800, 6000], on:false },
+  { id:'wall',    name:'Removing a wall',           range:[3500, 12000],on:false }
+];
+
+// Build extra checkboxes
+document.getElementById('k-extras').innerHTML = KEXTRAS.map(e =>
+  '<label class="check"><input type="checkbox" data-extra="' + e.id + '"' +
+  (e.on ? ' checked' : '') + '> ' + e.name + '</label>'
+).join('');
+
+function kGet(id) { return document.getElementById('k-' + id); }
+function kNum(id) { return Math.max(0, Number(kGet(id).value) || 0); }
+function money(v) { return '$' + (Math.round(v / 100) * 100).toLocaleString('en-US'); }
+
+function kCalc() {
+  const grade = kGet('grade').value;
+  const rate  = KPRICING.cabinetPerLF[grade];
+  const baseLF = kNum('baseLF'), wallLF = kNum('wallLF'), tallQty = kNum('tall');
+  const island = KPRICING.islands[kGet('island').value];
+  const counter = kGet('counter').value;
+  const counterRate = KPRICING.counterPerSF[counter];
+  const splitCook = kGet('cook').value === 'split';
+
+  const wfAllowed = !KPRICING.noWaterfall.includes(counter) && island.cabLF > 0;
+  kGet('wfField').style.display = wfAllowed ? '' : 'none';
+  const waterfall = wfAllowed ? Number(kGet('waterfall').value) : 0;
+
+  const lines = [];
+  let low = 0, high = 0;
+
+  function add(name, a, b, note) {
+    if (b <= 0) return;
+    low += a; high += b;
+    lines.push({ name, a, b, note: note || '' });
+  }
+
+  add('Base cabinets', baseLF*rate[0], baseLF*rate[1], baseLF+' lineal ft');
+  add('Wall cabinets',
+    wallLF*rate[0]*KPRICING.wallCabinetFactor,
+    wallLF*rate[1]*KPRICING.wallCabinetFactor,
+    wallLF+' lineal ft');
+  add('Pantry and tall cabinets',
+    tallQty*KPRICING.tallEach[grade][0],
+    tallQty*KPRICING.tallEach[grade][1],
+    tallQty+(tallQty===1?' unit':' units'));
+  if (splitCook) add('Wall oven cabinet', KPRICING.tallEach[grade][0], KPRICING.tallEach[grade][1], '1 unit');
+  if (island.cabLF > 0) add('Island cabinetry', island.cabLF*rate[0], island.cabLF*rate[1], island.cabLF+' lineal ft');
+  if (kGet('panel').checked) add('Refrigerator panels', KPRICING.panelSet[grade][0], KPRICING.panelSet[grade][1], 'matched to cabinets');
+
+  const perimSF = baseLF * 2.125;
+  const wfSF = waterfall * (island.depth + 0.5) * 3;
+  const topSF = perimSF + island.topSF + wfSF;
+  add('Countertops', topSF*counterRate[0], topSF*counterRate[1], Math.round(topSF)+' sq ft including waste');
+  if (waterfall > 0) add('Waterfall fabrication', waterfall*KPRICING.waterfallEach[0], waterfall*KPRICING.waterfallEach[1], waterfall===1?'one mitered end':'two mitered ends');
+
+  const roomSF = kNum('rlen') * kNum('rwid');
+  const floorKey = kGet('floor').value;
+  const flooring = KPRICING.floorPerSF[floorKey];
+  const factive = floorKey !== 'none';
+  kGet('oldField').style.display = factive ? '' : 'none';
+  kGet('deductField').style.display = factive ? '' : 'none';
+  if (factive) {
+    const deduction = kGet('deduct').checked ? (baseLF * 2 + island.footprint) : 0;
+    const netSF = Math.max(0, roomSF - deduction) + kNum('adj');
+    const orderSF = netSF * flooring[2];
+    add('Flooring', orderSF*flooring[0], orderSF*flooring[1], Math.round(orderSF)+' sq ft including waste');
+    if (floorKey === 'tile') add('Tile substrate and prep', netSF*KPRICING.tilePrepPerSF[0], netSF*KPRICING.tilePrepPerSF[1], 'membrane, thinset, flattening');
+    const removal = KPRICING.floorRemovalPerSF[kGet('oldfloor').value];
+    add('Floor removal', netSF*removal[0], netSF*removal[1], Math.round(netSF)+' sq ft');
+  }
+
+  const appl = KPRICING.appliances[kGet('appl').value];
+  const mult = splitCook ? KPRICING.splitCookMultiplier : 1;
+  add('Appliances', appl[0]*mult, appl[1]*mult, splitCook?'cooktop and wall oven':'range package');
+
+  document.querySelectorAll('#tab-kitchen [data-extra]').forEach(function(box) {
+    if (!box.checked) return;
+    const item = KEXTRAS.find(e => e.id === box.dataset.extra);
+    if (item.id === 'splash') {
+      const splashSF = wallLF * 1.8;
+      add('Backsplash', splashSF*KPRICING.backsplashPerSF[0], splashSF*KPRICING.backsplashPerSF[1], Math.round(splashSF)+' sq ft');
+    } else {
+      add(item.name, item.range[0], item.range[1]);
+    }
+  });
+
+  const cLow = low * KPRICING.contingency[0];
+  const cHigh = high * KPRICING.contingency[1];
+  low += cLow; high += cHigh;
+  lines.push({ name:'Contingency', a:cLow, b:cHigh, note:'unforeseen conditions' });
+
+  const totalText = money(low) + ' – ' + money(high);
+  document.getElementById('k-total').textContent = totalText;
+  document.getElementById('k-barTotal').textContent = totalText;
+  document.getElementById('k-psf').textContent = roomSF > 0
+    ? money(low/roomSF) + ' to ' + money(high/roomSF) + ' per square foot of kitchen' : '';
+
+  document.getElementById('k-lines').innerHTML = lines.length
+    ? lines.map(l =>
+        '<div class="line"><div><span class="name">'+l.name+'</span>'+
+        (l.note?'<span class="note">'+l.note+'</span>':'')+
+        '</div><div class="amt">'+money(l.a)+' – '+money(l.b)+'</div></div>'
+      ).join('')
+    : '<p class="empty">Choose your cabinets to start building the estimate.</p>';
+}
+
+document.getElementById('k-planner').addEventListener('input', kCalc);
+document.getElementById('k-planner').addEventListener('change', kCalc);
+kCalc();
+
+// Kitchen email send
+document.getElementById('k-sendBtn').addEventListener('click', function() {
+  sendEstimate('k-email','k-emailErr','k-total');
+});
+document.getElementById('k-email').addEventListener('input', function() {
+  clearSendErr('k-emailErr');
+});
+
+/* ============================================================
+   BATHROOM CALCULATOR
+   ============================================================ */
+const BATH = {
+  base: {
+    half:       [8000,  18000],
+    guest:      [18000, 40000],
+    master:     [35000, 75000],
+    master_lux: [65000, 150000]
+  },
+  sizeMult: { small: 0.8, med: 1.0, large: 1.25, xl: 1.5 },
+  finishMult: { builder: 0.75, mid: 1.0, high: 1.35, lux: 1.85 },
+  extras: {
+    b_demo:     [1200, 2500],
+    b_plumb:    [2500, 6000],
+    b_elec:     [1000, 2500],
+    b_tile:     [3000, 8000],
+    b_vanity:   [1200, 4000],
+    b_fixtures: [800,  3500],
+    b_niche:    [600,  1800],
+    b_heat:     [2000, 5000],
+    b_window:   [1500, 4000]
+  }
+};
+
+function bCalc() {
+  const type = document.getElementById('b-type').value;
+  const size = document.getElementById('b-size').value;
+  const finish = document.getElementById('b-finish').value;
+
+  let low = BATH.base[type][0] * BATH.sizeMult[size] * BATH.finishMult[finish];
+  let high = BATH.base[type][1] * BATH.sizeMult[size] * BATH.finishMult[finish];
+
+  const extras = [];
+  ['b-demo','b-plumb','b-elec','b-tile','b-vanity','b-fixtures','b-niche','b-heat','b-window'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el && el.checked) {
+      const key = id.replace('-','_');
+      const r = BATH.extras[key];
+      if (r) { low += r[0]; high += r[1]; }
+    }
+  });
+
+  // contingency
+  low  = low  * 1.10;
+  high = high * 1.15;
+
+  document.getElementById('b-total').textContent = money(low) + ' – ' + money(high);
+  document.getElementById('b-breakdown').innerHTML =
+    '<div class="rb-line"><span class="rbl">Base renovation</span><span>' +
+    money(BATH.base[type][0]*BATH.sizeMult[size]*BATH.finishMult[finish]) + ' – ' +
+    money(BATH.base[type][1]*BATH.sizeMult[size]*BATH.finishMult[finish]) + '</span></div>' +
+    '<div class="rb-line"><span class="rbl">Optional scope</span><span>Itemized above</span></div>' +
+    '<div class="rb-line"><span class="rbl">Contingency</span><span>10–15%</span></div>';
+}
+
+document.querySelectorAll('#tab-bath select, #tab-bath input').forEach(function(el) {
+  el.addEventListener('change', bCalc);
+});
+bCalc();
+
+document.getElementById('b-sendBtn').addEventListener('click', function() {
+  sendEstimate('b-email','b-emailErr','b-total');
+});
+document.getElementById('b-email').addEventListener('input', function() {
+  clearSendErr('b-emailErr');
+});
+
+/* ============================================================
+   ADU / ADDITION CALCULATOR
+   ============================================================ */
+const ADU = {
+  basePerSF: {
+    attached:     { sm:[200,290], med:[190,275], lg:[180,260], xl:[170,250] },
+    detached_adu: { sm:[280,400], med:[265,380], lg:[255,360], xl:[245,340] },
+    garage_adu:   { sm:[150,230], med:[145,220], lg:[140,210], xl:[135,200] },
+    junior_adu:   { sm:[100,170], med:[95, 160], lg:[90, 150], xl:[85, 140] }
+  },
+  sqftRange: { sm:[250,400], med:[400,700], lg:[700,1000], xl:[1000,1400] },
+  finishMult: { standard: 1.0, mid: 1.2, high: 1.5 },
+  extras: {
+    a_kitchen: [15000, 35000],
+    a_bath:    [18000, 40000],
+    a_hvac:    [5000,  12000],
+    a_panel:   [3000,   8000],
+    a_permits: [4000,  12000],
+    a_site:    [20000, 50000]
+  }
+};
+
+function aCalc() {
+  const type   = document.getElementById('a-type').value;
+  const sqft   = document.getElementById('a-sqft').value;
+  const finish = document.getElementById('a-finish').value;
+  const sfRange = ADU.sqftRange[sqft];
+  const rateRange = ADU.basePerSF[type][sqft];
+  const mult = ADU.finishMult[finish];
+
+  let low  = sfRange[0] * rateRange[0] * mult;
+  let high = sfRange[1] * rateRange[1] * mult;
+
+  ['a-kitchen','a-bath','a-hvac','a-panel','a-permits','a-site'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el && el.checked) {
+      const key = id.replace('-','_');
+      const r = ADU.extras[key];
+      if (r) { low += r[0]; high += r[1]; }
+    }
+  });
+
+  low  = low  * 1.10;
+  high = high * 1.15;
+
+  document.getElementById('a-total').textContent = money(low) + ' – ' + money(high);
+  document.getElementById('a-breakdown').innerHTML =
+    '<div class="rb-line"><span class="rbl">Construction (' + sfRange[0] + '–' + sfRange[1] + ' sq ft)</span>' +
+    '<span>' + money(sfRange[0]*rateRange[0]*mult) + ' – ' + money(sfRange[1]*rateRange[1]*mult) + '</span></div>' +
+    '<div class="rb-line"><span class="rbl">Systems and scope</span><span>Itemized by selection</span></div>' +
+    '<div class="rb-line"><span class="rbl">Contingency</span><span>10–15%</span></div>';
+}
+
+document.querySelectorAll('#tab-adu select, #tab-adu input').forEach(function(el) {
+  el.addEventListener('change', aCalc);
+});
+aCalc();
+
+document.getElementById('a-sendBtn').addEventListener('click', function() {
+  sendEstimate('a-email','a-emailErr','a-total');
+});
+document.getElementById('a-email').addEventListener('input', function() {
+  clearSendErr('a-emailErr');
+});
+
+/* ============================================================
+   NEW HOME BUILD CALCULATOR
+   ============================================================ */
+const NEWBUILD = {
+  sqftRange: { sm:[900,1500], med:[1500,2500], lg:[2500,3500], xl:[3500,5000], custom:[5000,7000] },
+  finishPerSF: {
+    builder: [200, 290],
+    mid:     [270, 380],
+    high:    [360, 500],
+    lux:     [480, 700]
+  },
+  storyMult: { one: 1.0, two: 0.90 },
+  extras: {
+    n_garage:  [45000, 80000],
+    n_permits: [15000, 40000],
+    n_site:    [30000, 80000],
+    n_solar:   [18000, 35000],
+    n_pool:    [15000, 30000],
+    n_adu:     [150000, 280000]
+  }
+};
+
+function nCalc() {
+  const sqft   = document.getElementById('n-sqft').value;
+  const finish = document.getElementById('n-finish').value;
+  const stories= document.getElementById('n-stories').value;
+  const sfRange  = NEWBUILD.sqftRange[sqft];
+  const rateRange = NEWBUILD.finishPerSF[finish];
+  const sMult = NEWBUILD.storyMult[stories];
+
+  let low  = sfRange[0] * rateRange[0] * sMult;
+  let high = sfRange[1] * rateRange[1] * sMult;
+
+  ['n-garage','n-permits','n-site','n-solar','n-pool','n-adu'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el && el.checked) {
+      const key = id.replace('-','_');
+      const r = NEWBUILD.extras[key];
+      if (r) { low += r[0]; high += r[1]; }
+    }
+  });
+
+  low  = low  * 1.10;
+  high = high * 1.15;
+
+  document.getElementById('n-total').textContent = money(low) + ' – ' + money(high);
+  document.getElementById('n-breakdown').innerHTML =
+    '<div class="rb-line"><span class="rbl">Construction (' + sfRange[0].toLocaleString() + '–' + sfRange[1].toLocaleString() + ' sq ft)</span>' +
+    '<span>' + money(sfRange[0]*rateRange[0]*sMult) + ' – ' + money(sfRange[1]*rateRange[1]*sMult) + '</span></div>' +
+    '<div class="rb-line"><span class="rbl">Site and options</span><span>Itemized by selection</span></div>' +
+    '<div class="rb-line"><span class="rbl">Contingency</span><span>10–15%</span></div>';
+}
+
+document.querySelectorAll('#tab-newbuild select, #tab-newbuild input').forEach(function(el) {
+  el.addEventListener('change', nCalc);
+});
+nCalc();
+
+document.getElementById('n-sendBtn').addEventListener('click', function() {
+  sendEstimate('n-email','n-emailErr','n-total');
+});
+document.getElementById('n-email').addEventListener('input', function() {
+  clearSendErr('n-emailErr');
+});
+
+/* ============================================================
+   SHARED EMAIL SEND (Formspree)
+   ============================================================ */
+function sendEstimate(emailId, errId, totalId) {
+  const emailEl = document.getElementById(emailId);
+  const errEl   = document.getElementById(errId);
+  const val = emailEl.value.trim();
+
+  if (!val) { errEl.textContent = 'Enter an email address first.'; errEl.className = 'send-err'; return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val)) {
+    errEl.textContent = "That doesn't look right — check the address.";
+    errEl.className = 'send-err';
+    return;
+  }
+
+  const estimate = document.getElementById(totalId).textContent;
+
+  fetch('https://formspree.io/f/mjgelgzo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ email: val, estimate: estimate, message: 'Estimator lead — ' + estimate })
+  })
+  .then(function(r) {
+    if (r.ok) {
+      errEl.className = 'send-ok';
+      errEl.textContent = 'On its way — we\'ll follow up within a business day.';
+    } else {
+      errEl.className = 'send-err';
+      errEl.textContent = 'Something went wrong. Try again or call us directly.';
+    }
+  })
+  .catch(function() {
+    errEl.className = 'send-err';
+    errEl.textContent = 'Could not send. Try again or call (916) 572-4818.';
+  });
+}
+
+function clearSendErr(errId) {
+  var el = document.getElementById(errId);
+  el.className = 'send-err';
+  el.textContent = '';
+}
+</script>
+</body>
+</html>
