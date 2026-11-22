@@ -1,57 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://www.bevelbuilders.com/</loc>
-    <lastmod>2026-03-26</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>1.0</priority>
+    <loc>https://bevelbuilders.com/</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
-    <loc>https://www.bevelbuilders.com/kitchen-remodel.html</loc>
-    <lastmod>2026-03-26</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <loc>https://bevelbuilders.com/projects.html</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
-    <loc>https://www.bevelbuilders.com/master-suite-addition.html</loc>
-    <lastmod>2026-03-26</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <loc>https://bevelbuilders.com/kitchen-remodel.html</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
-    <loc>https://www.bevelbuilders.com/hall-bath-remodel.html</loc>
-    <lastmod>2026-03-26</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <loc>https://bevelbuilders.com/master-suite-addition.html</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
-    <loc>https://www.bevelbuilders.com/oak-park-spa-bath.html</loc>
-    <lastmod>2026-03-26</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <loc>https://bevelbuilders.com/hall-bath-remodel.html</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
-    <loc>https://www.bevelbuilders.com/about.html</loc>
-    <lastmod>2026-06-12</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <loc>https://bevelbuilders.com/oak-park-spa-bath.html</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
-    <loc>https://www.bevelbuilders.com/projects.html</loc>
-    <lastmod>2026-06-12</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
+    <loc>https://bevelbuilders.com/pocket-master-hall-bath.html</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
-    <loc>https://www.bevelbuilders.com/pocket-master-hall-bath.html</loc>
-    <lastmod>2026-06-12</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <loc>https://bevelbuilders.com/pocket-patio-exterior.html</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
   <url>
-    <loc>https://www.bevelbuilders.com/pocket-patio-exterior.html</loc>
-    <lastmod>2026-06-12</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
+    <loc>https://bevelbuilders.com/about.html</loc>
+    <lastmod>2026-11-22</lastmod>
+  </url>
+  <url>
+    <loc>https://bevelbuilders.com/estimator.html</loc>
+    <lastmod>2026-11-22</lastmod>
   </url>
 </urlset>
