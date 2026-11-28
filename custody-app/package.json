@@ -1,0 +1,12 @@
+{
+  "name": "coparent-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Co-parenting app: custody schedule, calendar sync, expenses, messaging, call tracking and court-ready records.",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}
