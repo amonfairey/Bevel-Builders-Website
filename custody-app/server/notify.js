@@ -1,7 +1,7 @@
 // In-app notification inbox + push fan-out. Shared by the web portal and the iPhone app.
 // notify() writes the inbox rows synchronously (cheap) and sends push later, so a
 // notification can never fail or slow down the API request that triggered it.
-import { bad } from './http.js';
+import { bad, HttpError } from './http.js';
 import { nowIso } from './db.js';
 import { PUSH_TOKEN_RE } from './push.js';
 
@@ -107,7 +107,12 @@ export function notificationRoutes(r, { db, notifier }) {
     if (t.length > 200 || !PUSH_TOKEN_RE.test(t)) throw bad('Not a valid Expo push token');
     if (!['ios', 'android'].includes(body.platform)) throw bad("platform must be 'ios' or 'android'");
     const now = nowIso(), uid = c.user.id;
-    // Upsert: a device that signs in as someone else now belongs to them.
+    // A token registered to someone else moves only once that person's sign-in on it is gone (they signed out,
+    // or the session expired). Otherwise anyone who learned a device token could redirect another user's pushes.
+    const held = q(`SELECT p.user_id FROM push_tokens p JOIN sessions s ON s.token = p.session_token
+      WHERE p.token = ? AND p.user_id <> ? AND s.expires > ?`).get(t, uid, Date.now());
+    if (held) throw new HttpError(409, 'This device is registered to another signed-in account');
+    // Upsert: a device that signs in as someone else (after the previous account signed out) now belongs to them.
     q(`INSERT INTO push_tokens(token, user_id, platform, created_at, last_seen, session_token) VALUES(?,?,?,?,?,?)
       ON CONFLICT(token) DO UPDATE SET created_at = CASE WHEN user_id = excluded.user_id THEN created_at ELSE excluded.created_at END,
         user_id = excluded.user_id, platform = excluded.platform, last_seen = excluded.last_seen, session_token = excluded.session_token`)

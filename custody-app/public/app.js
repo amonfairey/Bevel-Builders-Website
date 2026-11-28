@@ -1006,8 +1006,13 @@ VIEWS.messages = async (main) => {
       return mount(clear(viewBox), h('div', { class: 'alert warn' }, 'That conversation could not be found. It may belong to a different family.'));
     }
     const { thread, messages } = data;
+    // Loading a thread records nothing; once it is on screen, tell the server it was read
+    // (read receipts and the thread's message notifications). View-only members never record reads.
+    const shownId = openThread;
+    if (isParent() && document.visibilityState === 'visible' && messages.length) {
+      post(`/api/threads/${shownId}/read`, { up_to: messages[messages.length - 1].id }).then(() => refreshUnread()).catch(() => {});
+    }
     const t = threads.find(x => x.id === openThread); if (t && t.unread) { t.unread = 0; drawList(); }
-    refreshUnread(); // opening a thread marks its message notifications read
     const ta = h('textarea', { placeholder: 'Brief, informative, friendly, firm.', 'aria-label': 'Reply' });
     mount(clear(viewBox), h('h2', null, thread.subject),
       h('div', null, messages.map(m => h('div', { class: `msg${m.author === S.me.user.id ? ' mine' : ''}` }, m.body,
@@ -1109,9 +1114,12 @@ function callForm(rules) {
 VIEWS.exchanges = async (main) => {
   const list = await get('/api/exchanges');
   const rerender = () => { clear(main); VIEWS.exchanges(main); };
-  mount(main, head('Exchanges', 'Check in at hand-offs. The server timestamps each check-in and compares it with the scheduled exchange.', isParent() ? h('button', { class: 'primary', onclick: () => exchangeForm(rerender) }, 'Check in now') : null),
+  mount(main, head('Exchanges', 'Check in at hand-offs. The server timestamps each check-in and compares it with the scheduled exchange. Check-ins saved more than 10 minutes after the time entered are marked "Entered later".', isParent() ? h('button', { class: 'primary', onclick: () => exchangeForm(rerender) }, 'Check in now') : null),
     h('div', { class: 'card' }, list.length ? h('div', { class: 'table-wrap' }, h('table', { class: 't' }, h('thead', null, h('tr', null, ['When', 'What', 'By', 'Scheduled', 'Late', 'Where', ''].map(x => h('th', null, x)))),
-      h('tbody', null, list.map(x => h('tr', null, h('td', { class: 'nowrap' }, fmtDT(x.at_ms)), h('td', null, { dropoff: 'Drop-off', pickup: 'Pick-up', no_show_other: 'Other parent no-show', late_other: 'Other parent late' }[x.kind]),
+      h('tbody', null, list.map(x => h('tr', null, h('td', { class: 'nowrap' }, fmtDT(x.at_ms),
+          // Saved more than 10 minutes away from the time entered: show when the server actually received it.
+          x.entered_late_minutes != null ? h('div', null, h('span', { class: 'badge warn', title: `The server saved this at ${fmtIso(x.created_at)}` },
+            x.entered_late_minutes > 0 ? 'Entered later' : 'Time is after it was saved'), h('div', { class: 'small muted' }, `Saved ${fmtIso(x.created_at)}`)) : null), h('td', null, { dropoff: 'Drop-off', pickup: 'Pick-up', no_show_other: 'Other parent no-show', late_other: 'Other parent late' }[x.kind]),
         h('td', null, x.logged_by_name), h('td', null, x.scheduled_ms ? fmtT(x.scheduled_ms) : '—'), h('td', null, x.minutes_late == null ? '—' : x.minutes_late > 5 ? h('span', { class: 'badge warn' }, `${x.minutes_late} min`) : x.minutes_late < -5 ? `${-x.minutes_late} min early` : 'On time'),
         h('td', null, x.location, x.lat != null ? h('div', null, h('a', { href: `https://www.openstreetmap.org/?mlat=${x.lat}&mlon=${x.lng}#map=17/${x.lat}/${x.lng}`, target: '_blank', rel: 'noopener' }, `GPS ±${Math.round(x.accuracy || 0)}m`)) : null),
         h('td', null, h('button', { onclick: () => modal('Exchange notes', h('div', null, x.details ? h('p', null, x.details) : null, notesPanel('exchange', x.id))) }, 'Notes'))))))) : h('p', { class: 'empty' }, 'No check-ins yet.')));
@@ -1213,7 +1221,13 @@ VIEWS.settings = async (main) => {
   mount(main, head('Settings'),
     h('div', { class: 'grid' },
       h('div', { class: 'card' }, h('h2', null, 'Family'), famForm),
-      h('div', { class: 'card' }, h('h2', null, 'People'), h('div', { class: 'list' }, S.me.members.map(m => h('div', { class: 'item row' }, parentDot(m.id), h('b', null, m.name), h('span', { class: 'muted small' }, `${m.role === 'viewer' ? 'View only' : 'Parent'} · ${isDeletedMember(m) ? 'account deleted' : m.email}`)))),
+      h('div', { class: 'card' }, h('h2', null, 'People'), h('div', { class: 'list' }, S.me.members.map(m => h('div', { class: 'item row' }, parentDot(m.id), h('b', null, m.name), h('span', { class: 'muted small' }, `${m.role === 'viewer' ? 'View only' : 'Parent'} · ${isDeletedMember(m) ? 'account deleted' : m.email}`),
+        // Parents can remove view-only members (e.g. an attorney whose engagement ended). Parents cannot be removed.
+        isParent() && m.role === 'viewer' ? h('button', { class: 'danger', style: 'margin-left:auto', 'aria-label': `Remove ${m.name}`, onclick: async () => {
+          const ok = await confirmBox(`Remove ${m.name}?`, `${m.name} loses view-only access to your family's calendar and records. The other parent is told. To stop them rejoining, also make a new view-only code.`, { okLabel: 'Remove' });
+          if (!ok) return;
+          await attempt(() => post(`/api/members/${m.id}/remove`), `${m.name} removed`); await refreshMe(); rerender();
+        } }, 'Remove') : null))),
         isParent() ? h('div', null,
           f.invite_code ? h('div', { class: 'alert' }, 'Co-parent invite code: ', h('b', null, f.invite_code), h('div', { class: 'small muted' }, 'They create an account, then enter this code. It works once.')) : null,
           h('div', { class: 'alert' }, 'View-only code (attorney, mediator, GAL, step-parent): ', h('b', null, f.viewer_code),

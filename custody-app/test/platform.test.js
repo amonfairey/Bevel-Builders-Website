@@ -293,8 +293,10 @@ test('notifications reach the other parent only', async (t) => {
   assert.equal((await dad.get('/api/me')).unread_notifications, 10);
   assert.deepEqual(await viewer.post('/api/notifications/read', { all: true }), { ok: true, unread: 0 });
 
-  // Opening the thread marks its message notification read.
+  // Reading the thread (POST /read, sent by the clients once it is on screen) marks its message notification read.
   await dad.get(`/api/threads/${th}`);
+  assert.equal((await dad.get('/api/me')).unread_notifications, 10, 'loading alone changes nothing');
+  await dad.post(`/api/threads/${th}/read`);
   assert.equal((await dad.get('/api/me')).unread_notifications, 9);
 
   // Paging: newest first, `before` continues.
@@ -377,7 +379,11 @@ test('push goes to the recipient devices in Expo format', async (t) => {
   await waitFor(() => received.length >= 1);
   assert.deepEqual(received.flatMap(r => r.msgs).map(x => x.to), [momTok]);
 
-  // A token registered by another user moves to them; remove only affects the caller's own token.
+  // A token registered by another user moves to them only once that user's sign-in on it is gone;
+  // remove only affects the caller's own token.
+  assert.equal((await f.mom.req('POST', '/api/push-tokens', { token: phone, platform: 'ios' })).status, 409, "Dad is still signed in on that device");
+  assert.equal(tokenRow(phone).user_id, f.dadId);
+  db.prepare('UPDATE push_tokens SET session_token = NULL WHERE token = ?').run(phone); // Dad's sign-in on the phone has ended
   await f.mom.post('/api/push-tokens', { token: phone, platform: 'ios' });
   assert.equal(tokenRow(phone).user_id, f.momId);
   await f.dad.post('/api/push-tokens/remove', { token: momTok });
@@ -480,7 +486,7 @@ test('delete account with a co-parent: anonymized, shared records kept', async (
   const f = await family(base);
   const { id: th } = await f.mom.post('/api/threads', { subject: 'School', body: 'Parent-teacher night is Thursday.' });
   await f.dad.post(`/api/threads/${th}/messages`, { body: 'I will be there.' });
-  await f.dad.get(`/api/threads/${th}`);
+  await f.dad.post(`/api/threads/${th}/read`);
   await f.dad.post('/api/notes', { target_type: 'general', target_id: '', body: 'Journal entry' });
   await f.dad.post('/api/push-tokens', { token: 'ExponentPushToken[dad]', platform: 'ios' });
   const link = await f.dad.post('/api/report-link', {});
@@ -506,6 +512,7 @@ test('delete account with a co-parent: anonymized, shared records kept', async (
 
   // The other parent's record is intact and still attributed.
   const thread = await f.mom.get(`/api/threads/${th}`);
+  await f.mom.post(`/api/threads/${th}/read`);
   assert.deepEqual(thread.messages.map(m => [m.author_name, m.body]), [['Mom', 'Parent-teacher night is Thursday.'], ['Deleted user', 'I will be there.']]);
   assert.equal(thread.messages[0].reads[0].user, 'Deleted user');
   assert.equal((await f.mom.get('/api/expenses')).find(e => e.id === exp).paid_by, f.dadId);
@@ -569,8 +576,8 @@ test('delete account as the last member purges the whole family', async (t) => {
   await mom.post('/api/notes', { target_type: 'expense', target_id: exp, body: 'Receipt attached', attachment: { name: 'n.pdf', type: 'application/pdf', data: Buffer.from('%PDF').toString('base64') } });
   const { id: th } = await mom.post('/api/threads', { subject: 'Hi', body: 'First' });
   await dad.post(`/api/threads/${th}/messages`, { body: 'Second' });
-  await dad.get(`/api/threads/${th}`);
-  await mom.get(`/api/threads/${th}`);
+  await dad.post(`/api/threads/${th}/read`);
+  await mom.post(`/api/threads/${th}/read`);
   const { id: cr } = await dad.post('/api/call-rules', { entitled_parent: dadId, count: 1, period: 'day' });
   await mom.post(`/api/call-rules/${cr}/decide`, { decision: 'approve' });
   await mom.post('/api/calls', { rule_id: cr, started: '2026-12-01T19:00', status: 'completed', duration_min: 10 });
@@ -608,7 +615,8 @@ test('delete account as the last member purges the whole family', async (t) => {
 
   // The append-only protections are back and still guard everyone else's records.
   const triggers = db.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name").all().map(x => x.name);
-  assert.deepEqual(triggers, ['audit_no_delete', 'audit_no_update', 'messages_no_delete', 'messages_no_update', 'notes_no_delete', 'notes_no_update']);
+  assert.deepEqual(triggers, ['audit_no_delete', 'audit_no_update', 'calls_fixed_no_update', 'calls_no_delete', 'exchanges_no_delete', 'exchanges_no_update',
+    'messages_no_delete', 'messages_no_update', 'notes_no_delete', 'notes_no_update']);
   assert.throws(() => db.prepare('UPDATE messages SET body = ? WHERE id = ?').run('edited', otherMsg), /append-only/);
   assert.throws(() => db.prepare('DELETE FROM messages WHERE id = ?').run(otherMsg), /append-only/);
   assert.throws(() => db.prepare('DELETE FROM notes WHERE family_id = ?').run(otherFid), /append-only/);
@@ -648,7 +656,8 @@ test('health check and public config need no sign-in', async (t) => {
 });
 
 test('sign-up is rate limited per IP', async (t) => {
-  const reg = (base, i, ip) => call(base, 'POST', '/api/register', { headers: { 'X-Forwarded-For': `${ip}, 10.0.0.1` }, body: { email: `u${i}@example.com`, name: 'U', password: 'correct-horse-1' } });
+  // Behind a proxy the right-most X-Forwarded-For entry is the client (the proxy appended it); anything to its left is client-supplied.
+  const reg = (base, i, ip) => call(base, 'POST', '/api/register', { headers: { 'X-Forwarded-For': `10.0.0.${i}, ${ip}` }, body: { email: `u${i}@example.com`, name: 'U', password: 'correct-horse-1' } });
   const proxied = await start(t, { trustProxy: true });
   for (let i = 0; i < 10; i++) assert.equal((await reg(proxied.base, i, '203.0.113.5')).status, 200);
   assert.equal((await reg(proxied.base, 10, '203.0.113.5')).status, 429);

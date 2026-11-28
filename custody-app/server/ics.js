@@ -69,19 +69,29 @@ function parseDateValue(value, params, defaultTz) {
 }
 
 const DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+const DAY_MS = 86400000;
+
+/** Limits for imported calendars (a feed is untrusted input). */
+export const ICS_LIMITS = { events: 5000, iterations: 200000, exdates: 1000 };
 
 /**
  * Parse an ICS document into concrete event instances overlapping [fromMs, toMs).
  * Returns [{uid, title, location, start, end, allDay}]
+ * Throws if the file has more than ICS_LIMITS.events VEVENTs. Recurrence expansion shares a budget of
+ * ICS_LIMITS.iterations steps across the whole file and jumps straight to the window, so an event that
+ * started decades ago costs no more than one that started last week.
  */
-export function parseIcs(text, { defaultTz = 'UTC', fromMs, toMs, maxInstances = 5000 }) {
+export function parseIcs(text, { defaultTz = 'UTC', fromMs, toMs, maxInstances = 5000, limits = ICS_LIMITS }) {
   const lines = unfold(text);
   const events = [];
   let cur = null, depth = 0;
   for (const raw of lines) {
     const line = raw.trimEnd();
     if (!line) continue;
-    if (line === 'BEGIN:VEVENT') { cur = { exdates: new Set(), overrides: false }; depth = 0; continue; }
+    if (line === 'BEGIN:VEVENT') {
+      if (events.length >= limits.events) throw new Error(`Calendar has more than ${limits.events} events`);
+      cur = { exdates: new Set(), overrides: false }; depth = 0; continue;
+    }
     if (!cur) continue;
     if (line.startsWith('BEGIN:')) { depth++; continue; }      // VALARM etc.
     if (line.startsWith('END:') && depth > 0) { depth--; continue; }
@@ -100,7 +110,7 @@ export function parseIcs(text, { defaultTz = 'UTC', fromMs, toMs, maxInstances =
       case 'RRULE': cur.rrule = Object.fromEntries(p.value.split(';').map(kv => kv.split('=')).map(([k, v]) => [k.toUpperCase(), v])); break;
       case 'RECURRENCE-ID': cur.recurrenceId = parseDateValue(p.value, p.params, defaultTz); break;
       case 'EXDATE':
-        for (const v of p.value.split(',')) { const d = parseDateValue(v, p.params, defaultTz); if (d) cur.exdates.add(d.ms); }
+        for (const v of p.value.split(',')) { if (cur.exdates.size >= limits.exdates) break; const d = parseDateValue(v, p.params, defaultTz); if (d) cur.exdates.add(d.ms); }
         break;
     }
   }
@@ -113,16 +123,18 @@ export function parseIcs(text, { defaultTz = 'UTC', fromMs, toMs, maxInstances =
   }
 
   const out = [];
+  const budget = { left: limits.iterations };
   for (const e of events) {
+    if (out.length >= maxInstances) break;
     if (!e.dtstart || e.status === 'CANCELLED') continue;
-    const durMs = e.dtend ? e.dtend.ms - e.dtstart.ms : (e.duration ?? (e.dtstart.allDay ? 86400000 : 3600000));
+    const durMs = Math.max(0, e.dtend ? e.dtend.ms - e.dtstart.ms : (e.duration ?? (e.dtstart.allDay ? 86400000 : 3600000)));
     const base = { uid: e.uid || `${e.title}-${e.dtstart.ms}`, title: e.title || '(no title)', location: e.location || '', allDay: e.dtstart.allDay };
     if (!e.rrule || e.recurrenceId) {
       if (e.dtstart.ms < toMs && e.dtstart.ms + durMs > fromMs) out.push({ ...base, start: e.dtstart.ms, end: e.dtstart.ms + durMs });
       continue;
     }
     const skip = replaced.get(e.uid) || new Set();
-    for (const startMs of expandRrule(e.dtstart, e.rrule, toMs, maxInstances)) {
+    for (const startMs of expandRrule(e.dtstart, e.rrule, toMs, maxInstances, fromMs - durMs, budget)) {
       if (e.exdates.has(startMs) || skip.has(startMs)) continue;
       if (startMs + durMs <= fromMs) continue;
       out.push({ ...base, uid: `${base.uid}#${startMs}`, start: startMs, end: startMs + durMs });
@@ -139,36 +151,56 @@ function parseDuration(v) {
   return m[1] === '-' ? -ms : ms;
 }
 
-function* expandRrule(dtstart, rr, toMs, max) {
+/**
+ * Occurrence start times of an RRULE, up to toMs. Without COUNT, the expansion starts near `skipToMs`
+ * (whole intervals are skipped arithmetically); every step spends one unit of the shared `budget`.
+ */
+function* expandRrule(dtstart, rr, toMs, max, skipToMs, budget) {
   const freq = rr.FREQ;
-  const interval = Math.max(1, +(rr.INTERVAL || 1));
+  const interval = Math.min(1000, Math.max(1, Math.floor(+(rr.INTERVAL || 1)) || 1));
   const count = rr.COUNT ? +rr.COUNT : Infinity;
   let until = Infinity;
   if (rr.UNTIL) { const u = parseDateValue(rr.UNTIL, {}, dtstart.tz); if (u) until = u.allDay ? u.ms + 86399999 : u.ms; }
   const tz = dtstart.tz;
   const w = dtstart.wall || (() => { const p = tzParts(dtstart.ms, 'UTC'); return { y: p.y, m: p.m, d: p.d, h: p.h, min: p.min }; })();
   const at = (y, m, d) => zonedToUtc(y, m, d, w.h, w.min, tz);
-  let n = 0, guard = 0;
+  let n = 0;
   const emit = (ms) => { if (ms < dtstart.ms) return false; n++; return true; };
+  const step = () => --budget.left >= 0;
+  // Skipping ahead is only exact when COUNT doesn't need the skipped occurrences counted.
+  // Two days of margin covers any time zone offset between wall dates and UTC.
+  const target = Number.isFinite(count) || !Number.isFinite(skipToMs) ? -Infinity : skipToMs - 2 * DAY_MS;
+  const startDay = Date.UTC(w.y, w.m - 1, w.d);
 
   if (freq === 'WEEKLY') {
-    const days = rr.BYDAY ? rr.BYDAY.split(',').map(s => DAY_CODES.indexOf(s.slice(-2))).filter(x => x >= 0).sort() : [new Date(Date.UTC(w.y, w.m - 1, w.d)).getUTCDay()];
-    const startDow = new Date(Date.UTC(w.y, w.m - 1, w.d)).getUTCDay();
-    let weekStart = Date.UTC(w.y, w.m - 1, w.d) - startDow * 86400000;
-    while (guard++ < 20000) {
+    const days = rr.BYDAY ? [...new Set(rr.BYDAY.split(',').map(s => DAY_CODES.indexOf(s.slice(-2))).filter(x => x >= 0))].sort() : [new Date(startDay).getUTCDay()];
+    const startDow = new Date(startDay).getUTCDay();
+    let weekStart = startDay - startDow * DAY_MS;
+    const stepMs = 7 * interval * DAY_MS;
+    if (target > weekStart + stepMs) weekStart += Math.floor((target - weekStart) / stepMs - 1) * stepMs;
+    while (step()) {
       for (const dow of days) {
-        const dt = new Date(weekStart + dow * 86400000);
+        const dt = new Date(weekStart + dow * DAY_MS);
         const ms = at(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
         if (ms > until || ms >= toMs || n >= count || n >= max) return;
         if (emit(ms)) yield ms;
       }
-      weekStart += 7 * interval * 86400000;
+      weekStart += stepMs;
     }
     return;
   }
-  for (let i = 0; guard++ < 20000; i += interval) {
+  let i = 0;
+  if (target > startDay) {
+    const t = new Date(target);
+    let ahead = 0;
+    if (freq === 'DAILY') ahead = Math.floor((target - startDay) / DAY_MS) - 1;
+    else if (freq === 'MONTHLY') ahead = (t.getUTCFullYear() - w.y) * 12 + (t.getUTCMonth() + 1 - w.m) - 1;
+    else if (freq === 'YEARLY') ahead = t.getUTCFullYear() - w.y - 1;
+    if (ahead > 0) i = Math.floor(ahead / interval) * interval;
+  }
+  for (; step(); i += interval) {
     let y = w.y, m = w.m, d = w.d;
-    if (freq === 'DAILY') { const dt = new Date(Date.UTC(w.y, w.m - 1, w.d) + i * 86400000); y = dt.getUTCFullYear(); m = dt.getUTCMonth() + 1; d = dt.getUTCDate(); }
+    if (freq === 'DAILY') { const dt = new Date(startDay + i * DAY_MS); y = dt.getUTCFullYear(); m = dt.getUTCMonth() + 1; d = dt.getUTCDate(); }
     else if (freq === 'MONTHLY') { const t = (w.m - 1) + i; y = w.y + Math.floor(t / 12); m = (t % 12) + 1; }
     else if (freq === 'YEARLY') { y = w.y + i; }
     else return;
@@ -183,7 +215,9 @@ function* expandRrule(dtstart, rr, toMs, max) {
 
 // ---------- Writer ----------
 
-function esc(s) { return String(s ?? '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1'); }
+// Text values: CR/LF become an escaped newline, other control characters are dropped, then \ , ; are escaped.
+// eslint-disable-next-line no-control-regex
+function esc(s) { return String(s ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1'); }
 function fold(line) {
   const out = [];
   let s = line;

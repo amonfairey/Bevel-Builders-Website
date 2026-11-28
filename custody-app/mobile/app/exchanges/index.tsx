@@ -17,7 +17,7 @@ export default function ExchangesScreen() {
   return (
     <Screen headerTitle="Exchanges" refreshing={q.refreshing} onRefresh={q.refresh} testID="exchanges-screen">
       <AppText variant="subhead" tone="muted" style={{ marginBottom: 12 }}>
-        Check in at hand-offs. The server timestamps each check-in and compares it with the scheduled exchange.
+        Check in at hand-offs. The server timestamps each check-in and compares it with the scheduled exchange. A check-in saved more than 10 minutes after the time entered is marked "Entered later".
       </AppText>
       {isParent ? (
         <Button title="Check in now" icon="location" variant="primary" block onPress={checkIn} style={{ minHeight: 56, marginBottom: 20 }} testID="check-in-now" />

@@ -117,7 +117,7 @@ function JoinFamily({ onDone }: { onDone: () => Promise<unknown> }) {
         onChangeText={(v) => { setCode(v.toUpperCase()); if (error) setError(null); }}
         autoCapitalize="characters"
         autoCorrect={false}
-        placeholder="e.g. 3F9A1C0B7D"
+        placeholder="e.g. ABCD-EFGH-JKLM-NPQR"
         returnKeyType="go"
         onSubmitEditing={submit}
         testID="invite-code"

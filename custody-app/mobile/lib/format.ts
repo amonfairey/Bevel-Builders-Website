@@ -94,18 +94,21 @@ function offsetMs(ms: number, tz: string): number {
 }
 
 /**
- * Wall-clock date + time in `tz` -> UTC ms. Same algorithm as server/time.js zonedToUtc,
- * so the two always agree (a time inside a spring-forward gap shifts forward).
+ * Wall-clock date + time in `tz` -> UTC ms. Same result as server/time.js zonedToUtc, so the two
+ * always agree: a time inside a spring-forward gap shifts forward by the gap (02:30 -> 03:30), and a
+ * time that happens twice (fall back) is the first occurrence.
  */
 export function localToMs(date: string, time: string, tz: string): number {
   const [y, m, d] = date.split('-').map(Number);
   const [h, min] = (time || '00:00').split(':').map(Number);
   const guess = Date.UTC(y, m - 1, d, h, min);
   const off1 = offsetMs(guess, tz);
-  let t = guess - off1;
-  const off2 = offsetMs(t, tz);
-  if (off2 !== off1) t = guess - off2;
-  return t;
+  const t1 = guess - off1;
+  const off2 = offsetMs(t1, tz);
+  if (off2 === off1) return t1;
+  const t2 = guess - off2;
+  if (offsetMs(t2, tz) === off2) return t2;
+  return guess - Math.min(off1, off2); // in a gap: the offset in force before it
 }
 
 /** 'YYYY-MM-DDTHH:MM' in `tz` -> UTC ms */

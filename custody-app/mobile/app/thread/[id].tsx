@@ -12,14 +12,15 @@ import { useBadges } from '@/lib/badges';
 import { fmtDate, todayLocal } from '@/lib/format';
 import { useApi, usePeople } from '@/lib/hooks';
 import { useTheme } from '@/lib/theme';
-import type { IdResponse, ThreadResponse } from '@/lib/types';
+import type { IdResponse, ThreadReadResponse, ThreadResponse } from '@/lib/types';
 
 const POLL_MS = 15000;
 
 /**
- * One conversation. Opening it (GET /api/threads/:id) records read receipts for the
- * co-parent's messages server-side. Refreshes on focus and every 15 s while open, scrolls
- * to the newest message, and tone-checks every reply before sending.
+ * One conversation. Loading it (GET /api/threads/:id) records nothing; while the screen is
+ * focused, POST /api/threads/:id/read records read receipts for the co-parent's messages on
+ * screen (after the first load and whenever a poll brings new ones). Refreshes on focus and
+ * every 15 s while open, scrolls to the newest message, and tone-checks every reply before sending.
  */
 export default function ThreadScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -41,20 +42,41 @@ export default function ThreadScreen() {
   const forceScroll = useRef(true);
   const firstScroll = useRef(true);
 
+  const lastId = q.data?.messages[q.data.messages.length - 1]?.id ?? null;
+  const refreshBadges = badges.refresh;
+  const focused = useRef(false);
+  const lastIdRef = useRef<number | null>(null);
+  const readUpTo = useRef(0);
+  lastIdRef.current = lastId;
+
+  // Record reads only while this screen is focused, for messages that are on screen. Parents only:
+  // view-only members never record reads.
+  const markRead = useCallback(async () => {
+    const upTo = lastIdRef.current;
+    if (!threadId || !isParent || !focused.current || upTo == null || upTo <= readUpTo.current) return;
+    readUpTo.current = upTo;
+    try {
+      await api.post<ThreadReadResponse>(`/api/threads/${threadId}/read`, { up_to: upTo });
+      void refreshBadges();
+    } catch {
+      readUpTo.current = 0; // try again on the next load
+    }
+  }, [threadId, isParent, refreshBadges]);
+
   // Poll while the screen is focused (the co-parent may be replying right now).
   const { reload } = q;
   useFocusEffect(useCallback(() => {
     if (!threadId) return undefined;
+    focused.current = true;
+    void markRead();
     const timer = setInterval(() => { void reload(); }, POLL_MS);
-    return () => clearInterval(timer);
-  }, [threadId, reload]));
+    return () => { focused.current = false; clearInterval(timer); };
+  }, [threadId, reload, markRead]));
 
-  // Each load marks the co-parent's messages read: refresh the tab badge when something new arrived.
-  const lastId = q.data?.messages[q.data.messages.length - 1]?.id ?? null;
-  const refreshBadges = badges.refresh;
+  // A load brought new messages while focused: mark them read.
   useEffect(() => {
-    if (lastId != null) void refreshBadges();
-  }, [lastId, refreshBadges]);
+    if (lastId != null) void markRead();
+  }, [lastId, markRead]);
 
   const send = async () => {
     if (!threadId || sending) return;

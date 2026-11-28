@@ -28,14 +28,45 @@ function tzOffsetMs(ms, tz) {
   return asUtc - Math.floor(ms / 1000) * 1000;
 }
 
-/** Wall-clock time in `tz` -> UTC epoch ms. Handles DST gaps by shifting forward. */
+/**
+ * Wall-clock time in `tz` -> UTC epoch ms.
+ * DST gap (a wall time that does not exist, e.g. 02:30 on a spring-forward day in the US): shifted forward by
+ * the length of the gap, so 02:30 becomes 03:30. DST overlap (01:30 on a fall-back day happens twice): the
+ * first occurrence.
+ */
 export function zonedToUtc(y, m, d, h, min, tz) {
   const guess = Date.UTC(y, m - 1, d, h, min);
-  const off1 = tzOffsetMs(guess - 0, tz);
-  let t = guess - off1;
-  const off2 = tzOffsetMs(t, tz);
-  if (off2 !== off1) t = guess - off2;
-  return t;
+  // Fast path: most days have one UTC offset all day; cached per (zone, date).
+  const dayOff = dayOffset(y, m, d, tz);
+  if (dayOff !== null) return guess - dayOff;
+  return exactZonedToUtc(guess, tz);
+}
+
+function exactZonedToUtc(guess, tz) {
+  const off1 = tzOffsetMs(guess, tz);
+  const t1 = guess - off1;
+  const off2 = tzOffsetMs(t1, tz);
+  if (off2 === off1) return t1;
+  const t2 = guess - off2;
+  if (tzOffsetMs(t2, tz) === off2) return t2;
+  // Neither offset round-trips: the wall time falls in a gap. Use the offset in force before the gap
+  // (the smaller one), which lands the same distance after the gap's end.
+  return guess - Math.min(off1, off2);
+}
+
+// (zone, local date) -> the UTC offset in force for that whole local day, or null when it changes during the day
+// (or close enough that the exact computation is needed). A day's wall times map into [U - 14h, U + 38h] UTC.
+const dayOffCache = new Map();
+function dayOffset(y, m, d, tz) {
+  const key = `${tz}|${y}-${m}-${d}`;
+  let v = dayOffCache.get(key);
+  if (v !== undefined) return v;
+  const u = Date.UTC(y, m - 1, d);
+  const a = tzOffsetMs(u - 14 * 3600000, tz), b = tzOffsetMs(u + 38 * 3600000, tz);
+  v = a === b ? a : null;
+  if (dayOffCache.size > 100000) dayOffCache.clear();
+  dayOffCache.set(key, v);
+  return v;
 }
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -45,6 +76,16 @@ const TIME_RE = /^(\d{2}):(\d{2})$/;
 export function isDate(s) { return typeof s === 'string' && DATE_RE.test(s); }
 export function isLocal(s) { return typeof s === 'string' && LOCAL_RE.test(s); }
 export function isTime(s) { return typeof s === 'string' && TIME_RE.test(s); }
+
+/** Like isDate/isTime/isLocal, but the value must also be a real calendar date / clock time (no 2026-02-30, no 25:00). */
+export function isRealDate(s) {
+  if (!isDate(s)) return false;
+  const { y, m, d } = parseDate(s);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return y >= 1900 && y <= 2200 && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+export function isRealTime(s) { if (!isTime(s)) return false; const { h, min } = parseTime(s); return h <= 23 && min <= 59; }
+export function isRealLocal(s) { if (!isLocal(s)) return false; const [d, t] = s.split('T'); return isRealDate(d) && isRealTime(t); }
 
 export function parseDate(s) {
   const m = DATE_RE.exec(s);

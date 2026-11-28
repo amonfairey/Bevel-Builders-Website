@@ -9,11 +9,32 @@
 
 import {
   addDays, diffDays, dayOfWeek, easter, localToUtc, nthWeekday, parseDate,
-  utcToLocalDate, ymd, isDate, isTime, isLocal, localStampToUtc, parseTime,
+  utcToLocalDate, ymd, isRealDate, isRealTime, isRealLocal, localStampToUtc, parseTime,
 } from './time.js';
 
 const LAYER = { default: 0, pattern: 1000, holiday: 2000, override: 3000 };
 export const ACTIVE_STATUSES = new Set(['active', 'unconfirmed']);
+
+/**
+ * Size limits. They keep one request from tying up the server (the engine runs on the single event loop)
+ * and are far above what a real custody order needs.
+ */
+export const LIMITS = {
+  cycleDays: 56,          // longest repeating cycle
+  segments: 64,           // time blocks in one pattern
+  periods: 100,           // periods in one change request
+  periodDays: 400,        // longest single change period
+  holidayOffset: 60,      // |days| a holiday may start before / end after its date
+  onceDays: 400,          // longest one-time holiday period
+  priority: 500,          // |priority| within a layer (layers are 1000 apart)
+  intervals: 100000,      // expanded blocks per timeline computation
+};
+
+/** Thrown when a timeline would need more than LIMITS.intervals blocks (the API turns it into a 400). */
+export class ScheduleTooComplex extends Error {
+  constructor() { super('This schedule is too complex to show for that period. Choose a shorter period.'); this.code = 'schedule_too_complex'; }
+}
+const clampPrio = (p) => Math.max(-LIMITS.priority, Math.min(LIMITS.priority, Number.isInteger(p) ? p : 0));
 
 // ---------- Pattern templates ----------
 
@@ -65,18 +86,29 @@ export function patternFromTemplate({ template, anchorDate, parentA, parentB, ex
   }
 }
 
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const isInt = Number.isInteger;
+
 export function validatePattern(cfg, parentIds) {
-  if (!isDate(cfg.anchorDate)) throw new Error('Pattern needs an anchor date');
-  if (!(cfg.cycleDays >= 1 && cfg.cycleDays <= 56)) throw new Error('Cycle must be 1-56 days');
+  if (!isObj(cfg)) throw new Error('Pattern needs a configuration');
+  if (!isRealDate(cfg.anchorDate)) throw new Error('Pattern needs an anchor date');
+  if (!isInt(cfg.cycleDays) || cfg.cycleDays < 1 || cfg.cycleDays > LIMITS.cycleDays) throw new Error(`Cycle must be 1-${LIMITS.cycleDays} days`);
   if (!Array.isArray(cfg.segments) || !cfg.segments.length) throw new Error('Pattern has no time blocks');
+  if (cfg.segments.length > LIMITS.segments) throw new Error(`A pattern can have at most ${LIMITS.segments} time blocks`);
+  const maxDay = cfg.cycleDays * 2;
   for (const s of cfg.segments) {
+    if (!isObj(s)) throw new Error('Bad time block in pattern');
     if (!parentIds.includes(s.parent)) throw new Error('Pattern references an unknown parent');
-    if (!isTime(s.startTime) || !isTime(s.endTime)) throw new Error('Bad time in pattern');
+    if (!isRealTime(s.startTime) || !isRealTime(s.endTime)) throw new Error('Bad time in pattern');
+    if (!isInt(s.startDay) || !isInt(s.endDay) || s.startDay < 0 || s.endDay < 0 || s.startDay > maxDay || s.endDay > maxDay) {
+      throw new Error(`Pattern block days must be whole numbers from 0 to ${maxDay}`);
+    }
     const start = s.startDay * 1440 + toMin(s.startTime), end = s.endDay * 1440 + toMin(s.endTime);
     if (end <= start) throw new Error('A pattern block ends before it starts');
   }
-  if (cfg.effectiveFrom && !isDate(cfg.effectiveFrom)) throw new Error('Bad effective-from date');
-  if (cfg.effectiveTo && !isDate(cfg.effectiveTo)) throw new Error('Bad effective-to date');
+  if (cfg.effectiveFrom && !isRealDate(cfg.effectiveFrom)) throw new Error('Bad effective-from date');
+  if (cfg.effectiveTo && !isRealDate(cfg.effectiveTo)) throw new Error('Bad effective-to date');
+  if (cfg.effectiveFrom && cfg.effectiveTo && cfg.effectiveTo < cfg.effectiveFrom) throw new Error('The effective-to date is before the effective-from date');
 }
 
 function toMin(t) { const { h, min } = parseTime(t); return h * 60 + min; }
@@ -125,15 +157,44 @@ export function holidayOccurrence(rule, year) {
   }
 }
 
+const MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const monthDay = (m, d) => isInt(m) && m >= 1 && m <= 12 && isInt(d) && d >= 1 && d <= MONTH_DAYS[m - 1];
+
 export function validateHoliday(cfg, parentIds) {
-  if (!cfg.rule || !cfg.rule.type) throw new Error('Holiday needs a date rule');
-  holidayOccurrence(cfg.rule, 2026); // throws on unknown type
-  if (cfg.rule.type === 'once' && (!isDate(cfg.rule.startDate) || (cfg.rule.endDate && !isDate(cfg.rule.endDate)))) throw new Error('One-time period needs valid dates');
+  if (!isObj(cfg)) throw new Error('Holiday needs a configuration');
+  const rule = cfg.rule;
+  if (!isObj(rule) || !rule.type) throw new Error('Holiday needs a date rule');
+  switch (rule.type) {
+    case 'fixed': if (!monthDay(rule.month, rule.day)) throw new Error('Holiday needs a valid month and day'); break;
+    case 'nth_weekday':
+      if (!isInt(rule.month) || rule.month < 1 || rule.month > 12 || !isInt(rule.weekday) || rule.weekday < 0 || rule.weekday > 6
+        || !(rule.n === -1 || (isInt(rule.n) && rule.n >= 1 && rule.n <= 5))) throw new Error('Holiday needs a valid month, weekday and week number');
+      break;
+    case 'easter': break;
+    case 'range':
+      if (!monthDay(rule.startMonth, rule.startDay) || !monthDay(rule.endMonth, rule.endDay)) throw new Error('Holiday period needs valid start and end dates');
+      break;
+    case 'once':
+      if (!isRealDate(rule.startDate) || (rule.endDate && !isRealDate(rule.endDate))) throw new Error('One-time period needs valid dates');
+      if (rule.endDate && (rule.endDate < rule.startDate || diffDays(rule.endDate, rule.startDate) > LIMITS.onceDays)) {
+        throw new Error(`A one-time period must end on or after its start, within ${LIMITS.onceDays} days`);
+      }
+      break;
+    default: throw new Error(`Unknown holiday rule type: ${rule.type}`);
+  }
   for (const k of ['start', 'end']) {
     const b = cfg[k];
-    if (!b || !Number.isInteger(b.dayOffset) || !isTime(b.time)) throw new Error(`Holiday ${k} needs a day offset and time`);
+    if (!isObj(b) || !isInt(b.dayOffset) || !isRealTime(b.time)) throw new Error(`Holiday ${k} needs a day offset and time`);
+    if (Math.abs(b.dayOffset) > LIMITS.holidayOffset) throw new Error(`Holiday day offsets must be within ${LIMITS.holidayOffset} days`);
   }
-  const a = cfg.assignment || {};
+  // The block must end after it starts (checked on a sample year; 'once' uses its own year).
+  const year = rule.type === 'once' ? parseDate(rule.startDate).y : 2028;
+  const occ = holidayOccurrence(rule, year);
+  if (occ) {
+    const a = addDays(occ.startDate, cfg.start.dayOffset) + 'T' + cfg.start.time, b = addDays(occ.endDate, cfg.end.dayOffset) + 'T' + cfg.end.time;
+    if (b <= a) throw new Error('A holiday block ends before it starts');
+  }
+  const a = isObj(cfg.assignment) ? cfg.assignment : {};
   if (a.mode === 'fixed') {
     if (!parentIds.includes(a.parent)) throw new Error('Holiday assigned to unknown parent');
   } else if (a.mode === 'alternate') {
@@ -148,42 +209,57 @@ function holidayParent(cfg, year) {
 }
 
 export function validateOverride(cfg, parentIds) {
-  if (!Array.isArray(cfg.periods) || !cfg.periods.length) throw new Error('Change request needs at least one period');
+  if (!isObj(cfg) || !Array.isArray(cfg.periods) || !cfg.periods.length) throw new Error('Change request needs at least one period');
+  if (cfg.periods.length > LIMITS.periods) throw new Error(`A change request can have at most ${LIMITS.periods} periods`);
   for (const p of cfg.periods) {
-    if (!isLocal(p.start) || !isLocal(p.end)) throw new Error('Change request periods need start and end date/times');
+    if (!isObj(p) || !isRealLocal(p.start) || !isRealLocal(p.end)) throw new Error('Change request periods need start and end date/times');
     if (p.end <= p.start) throw new Error('A change period ends before it starts');
+    if (diffDays(p.end.slice(0, 10), p.start.slice(0, 10)) > LIMITS.periodDays) throw new Error(`A change period can be at most ${LIMITS.periodDays} days`);
     if (!parentIds.includes(p.parent)) throw new Error('Change request assigned to unknown parent');
   }
 }
 
 export function validateDefault(cfg, parentIds) {
-  if (!parentIds.includes(cfg.parent)) throw new Error('Default custody must be assigned to a parent');
+  if (!isObj(cfg) || !parentIds.includes(cfg.parent)) throw new Error('Default custody must be assigned to a parent');
 }
 
 // ---------- Expansion ----------
 
-/** Expand one rule into concrete UTC intervals overlapping [fromMs, toMs). */
-export function expandRule(rule, tz, fromMs, toMs) {
+/**
+ * Expand one rule into concrete UTC intervals overlapping [fromMs, toMs).
+ * A rule that has ended (ended_at, epoch ms) only produces time before that moment.
+ * `budget.left` counts down per generated block; ScheduleTooComplex is thrown when it runs out.
+ */
+export function expandRule(rule, tz, fromMs, toMs, budget = { left: LIMITS.intervals }) {
   const cfg = rule.config;
   const out = [];
   const src = { type: rule.type, id: rule.id, name: rule.name };
-  const prio = LAYER[rule.type] + (rule.priority || 0);
+  const prio = LAYER[rule.type] + clampPrio(rule.priority || 0);
+  const cap = rule.ended_at ?? Infinity;
+  const spend = () => { if (--budget.left < 0) throw new ScheduleTooComplex(); };
   const push = (start, end, parent) => {
+    end = Math.min(end, cap);
     if (end > fromMs && start < toMs && end > start) out.push({ start, end, parent, prio, order: rule.id, src });
   };
+  if (cap <= fromMs) return out;
 
   if (rule.type === 'pattern') {
-    const fromDate = addDays(utcToLocalDate(fromMs, tz), -cfg.cycleDays - 1);
-    const toDate = addDays(utcToLocalDate(toMs, tz), 1);
+    const fromDate = addDays(utcToLocalDate(fromMs, tz), -cfg.cycleDays * 2 - 1);
+    const toDate = addDays(utcToLocalDate(Math.min(toMs, cap), tz), 1);
     // A pattern never applies before it starts: entering a schedule today must not rewrite history.
     // To enter an older order, set the anchor (or effectiveFrom) to the order's start date.
-    const effFrom = localToUtc(cfg.effectiveFrom || cfg.anchorDate, '00:00', tz);
+    const effFromDate = cfg.effectiveFrom || cfg.anchorDate;
+    const effFrom = localToUtc(effFromDate, '00:00', tz);
     const effTo = cfg.effectiveTo ? localToUtc(addDays(cfg.effectiveTo, 1), '00:00', tz) : Infinity;
+    const lastDay = Math.max(...cfg.segments.map(s => s.endDay)) + 1;
     let k = Math.floor(diffDays(fromDate, cfg.anchorDate) / cfg.cycleDays);
     for (;; k++) {
       const cycleStart = addDays(cfg.anchorDate, k * cfg.cycleDays);
       if (cycleStart > toDate) break;
+      if (addDays(cycleStart, lastDay) < effFromDate) continue; // the whole cycle is before the pattern starts
+      if (localToUtc(cycleStart, '00:00', tz) >= effTo) break;
       for (const s of cfg.segments) {
+        spend();
         const a = localToUtc(addDays(cycleStart, s.startDay), s.startTime, tz);
         const b = localToUtc(addDays(cycleStart, s.endDay), s.endTime, tz);
         push(Math.max(a, effFrom), Math.min(b, effTo), s.parent);
@@ -193,6 +269,7 @@ export function expandRule(rule, tz, fromMs, toMs) {
     const y0 = parseDate(utcToLocalDate(fromMs, tz)).y - 1;
     const y1 = parseDate(utcToLocalDate(toMs, tz)).y;
     for (let y = y0; y <= y1; y++) {
+      spend();
       const occ = holidayOccurrence(cfg.rule, y);
       if (!occ) continue;
       const a = localToUtc(addDays(occ.startDate, cfg.start.dayOffset), cfg.start.time, tz);
@@ -200,41 +277,97 @@ export function expandRule(rule, tz, fromMs, toMs) {
       push(a, b, holidayParent(cfg, y));
     }
   } else if (rule.type === 'override') {
-    for (const p of cfg.periods) push(localStampToUtc(p.start, tz), localStampToUtc(p.end, tz), p.parent);
+    for (const p of cfg.periods) { spend(); push(localStampToUtc(p.start, tz), localStampToUtc(p.end, tz), p.parent); }
   }
   return out;
 }
 
-/**
- * Resolve all active rules into a non-overlapping timeline for [fromMs, toMs).
- * Returns [{start, end, parent, src}] (UTC ms), contiguous and merged.
- */
-export function buildTimeline({ rules, tz, fromMs, toMs, extraRules = [], excludeRuleIds = [] }) {
-  const active = rules.filter(r => ACTIVE_STATUSES.has(r.status) && !excludeRuleIds.includes(r.id)).concat(extraRules);
-  const def = active.filter(r => r.type === 'default').sort((a, b) => b.id - a.id)[0];
-  const defaultParent = def ? def.config.parent : null;
-  const intervals = active.filter(r => r.type !== 'default').flatMap(r => expandRule(r, tz, fromMs, toMs));
+/** A rule is in force if it is active / not yet confirmed, or it has ended (then only before ended_at). */
+export const inForce = (r) => ACTIVE_STATUSES.has(r.status) || (r.status === 'retired' && r.ended_at != null);
 
-  const points = new Set([fromMs, toMs]);
-  for (const iv of intervals) {
-    if (iv.start > fromMs && iv.start < toMs) points.add(iv.start);
-    if (iv.end > fromMs && iv.end < toMs) points.add(iv.end);
-  }
-  const sorted = [...points].sort((a, b) => a - b);
-  const out = [];
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const a = sorted[i], b = sorted[i + 1];
-    let best = null;
-    for (const iv of intervals) {
-      if (iv.start <= a && iv.end >= b && (!best || iv.prio > best.prio || (iv.prio === best.prio && iv.order > best.order))) best = iv;
+const DEFAULT_NAME = 'Default (primary parent)';
+
+/**
+ * Resolve the rules in force into a non-overlapping timeline for [fromMs, toMs).
+ * Returns [{start, end, parent, src}] (UTC ms), contiguous and merged.
+ *
+ * History is preserved: an item that was ended (or replaced) keeps applying before the moment it ended
+ * (rules.ended_at), and a primary-parent (default) rule applies from the moment it took effect
+ * (rules.effective_from; the family's first one from the beginning of time) until it was replaced.
+ *
+ * Sweep line over the sorted block boundaries with a max-heap of the blocks in force, keyed by
+ * (layer + priority, newer rule, earlier block): O((n + m) log n) for n blocks and m boundaries.
+ */
+export function buildTimeline({ rules, tz, fromMs, toMs, extraRules = [], excludeRuleIds = [], budget = LIMITS.intervals }) {
+  const excluded = new Set(excludeRuleIds);
+  const rulesInForce = rules.filter(r => inForce(r) && !excluded.has(r.id)).concat(extraRules);
+  const b = { left: budget };
+
+  const intervals = [];
+  rulesInForce.filter(r => r.type === 'default').sort((x, y) => x.id - y.id).forEach((r, i) => {
+    const start = i === 0 ? -Infinity : (r.effective_from ?? -Infinity);
+    const end = r.ended_at ?? Infinity;
+    if (end > fromMs && start < toMs && end > start) {
+      intervals.push({ start, end, parent: r.config.parent, prio: -Infinity, order: r.id, src: { type: 'default', id: r.id, name: DEFAULT_NAME } });
     }
-    const parent = best ? best.parent : defaultParent;
-    const src = best ? best.src : { type: 'default', id: def ? def.id : null, name: 'Default (primary parent)' };
+  });
+  for (const r of rulesInForce) if (r.type !== 'default') for (const iv of expandRule(r, tz, fromMs, toMs, b)) intervals.push(iv);
+
+  const pts = [fromMs, toMs];
+  const items = [];
+  for (const iv of intervals) {
+    const s = Math.max(iv.start, fromMs), e = Math.min(iv.end, toMs);
+    if (e <= s) continue;
+    items.push({ s, e, iv, idx: items.length });
+    if (s > fromMs) pts.push(s);
+    if (e < toMs) pts.push(e);
+  }
+  const sorted = [...new Set(pts)].sort((x, y) => x - y);
+  items.sort((x, y) => x.s - y.s || x.idx - y.idx);
+  const heap = new MaxHeap((x, y) => x.iv.prio > y.iv.prio || (x.iv.prio === y.iv.prio && (x.iv.order > y.iv.order || (x.iv.order === y.iv.order && x.idx < y.idx))));
+
+  const out = [];
+  let p = 0;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i], bEnd = sorted[i + 1];
+    while (p < items.length && items[p].s <= a) heap.push(items[p++]);
+    while (heap.size && heap.top().e <= a) heap.pop();
+    const best = heap.size ? heap.top().iv : null;
+    const parent = best ? best.parent : null;
+    const src = best ? best.src : { type: 'default', id: null, name: DEFAULT_NAME };
     const last = out[out.length - 1];
-    if (last && last.parent === parent && last.src.id === src.id && last.src.type === src.type) last.end = b;
-    else out.push({ start: a, end: b, parent, src });
+    if (last && last.parent === parent && last.src.id === src.id && last.src.type === src.type) last.end = bEnd;
+    else out.push({ start: a, end: bEnd, parent, src });
   }
   return out;
+}
+
+/** Binary max-heap; `better(a, b)` is true when a should come out before b. */
+class MaxHeap {
+  constructor(better) { this.a = []; this.better = better; }
+  get size() { return this.a.length; }
+  top() { return this.a[0]; }
+  push(x) {
+    const a = this.a; a.push(x);
+    let i = a.length - 1;
+    while (i > 0) { const p = (i - 1) >> 1; if (!this.better(a[i], a[p])) break; [a[i], a[p]] = [a[p], a[i]]; i = p; }
+  }
+  pop() {
+    const a = this.a, top = a[0], last = a.pop();
+    if (a.length) {
+      a[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < a.length && this.better(a[l], a[m])) m = l;
+        if (r < a.length && this.better(a[r], a[m])) m = r;
+        if (m === i) break;
+        [a[i], a[m]] = [a[m], a[i]]; i = m;
+      }
+    }
+    return top;
+  }
 }
 
 /** Hours and overnights per parent. The overnight credited to date d = who has the children at 2:00 AM on d. */
@@ -248,10 +381,12 @@ export function timeShare(timeline, tz, fromDate, toDateExclusive) {
     total += h;
   }
   const overnights = {};
-  let nights = 0;
+  let nights = 0, p = 0;
+  // The timeline is sorted and the 2:00 AM instants increase, so one pointer walks both.
   for (let d = fromDate; d < toDateExclusive; d = addDays(d, 1)) {
     const t = localToUtc(d, '02:00', tz);
-    const iv = timeline.find(x => x.start <= t && x.end > t);
+    while (p < timeline.length && timeline[p].end <= t) p++;
+    const iv = p < timeline.length && timeline[p].start <= t ? timeline[p] : null;
     if (!iv) continue;
     const key = iv.parent ?? 'unassigned';
     overnights[key] = (overnights[key] || 0) + 1;
@@ -274,9 +409,16 @@ export function transitions(timeline) {
   return out;
 }
 
+/** Who has the children at `ms` (binary search; the timeline is sorted and non-overlapping). */
 export function ownerAt(timeline, ms) {
-  const iv = timeline.find(x => x.start <= ms && x.end > ms);
-  return iv ? iv.parent : null;
+  let lo = 0, hi = timeline.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1, iv = timeline[mid];
+    if (iv.end <= ms) lo = mid + 1;
+    else if (iv.start > ms) hi = mid - 1;
+    else return iv.parent;
+  }
+  return null;
 }
 
 export { dayOfWeek };

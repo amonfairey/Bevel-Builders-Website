@@ -54,9 +54,9 @@ test('localToMs agrees with server/time.js, including times inside the DST gap a
     const l = localOf(mine, tz);
     assert.equal(`${l.date}T${l.time}`, server.utcToLocalStamp(mine, tz), `round trip ${d} ${tm} ${tz}`);
   }
-  // 2:30 AM does not exist on 2026-03-08 in Los Angeles; both implementations resolve it the same way.
+  // 2:30 AM does not exist on 2026-03-08 in Los Angeles; both implementations shift it forward to 3:30.
   const gap = localToMs('2026-03-08', '02:30', LA);
-  assert.ok(['01:30', '03:30'].includes(localOf(gap, LA).time));
+  assert.equal(localOf(gap, LA).time, '03:30');
 });
 
 test('daySegments splits the 23-hour DST day correctly', () => {

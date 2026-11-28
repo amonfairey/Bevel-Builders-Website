@@ -500,7 +500,7 @@ export interface Message {
   reads: MessageRead[];
 }
 
-/** GET /api/threads/:id (marks messages read for parents) */
+/** GET /api/threads/:id (records nothing; POST /api/threads/:id/read marks messages read) */
 export interface ThreadResponse {
   thread: Thread;
   messages: Message[];
@@ -624,7 +624,7 @@ export interface Exchange {
   id: number;
   family_id: number;
   kind: ExchangeKind;
-  /** server timestamp of the check-in, UTC ms */
+  /** when the hand-off happened, UTC ms: the time of the check-in, or a time the parent entered when logging it later */
   at_ms: number;
   /** nearest scheduled custody transition within 8 hours, UTC ms */
   scheduled_ms: number | null;
@@ -636,15 +636,33 @@ export interface Exchange {
   details: string;
   logged_by: number;
   logged_by_name: string;
+  /** when the server saved the check-in (ISO); cannot be changed */
   created_at: string;
+  /** created_at as UTC ms */
+  recorded_at_ms: number;
+  /**
+   * Minutes from at_ms to when the server saved it, when that is more than 10 either way ("entered later");
+   * null when the check-in was saved at the time it describes.
+   */
+  entered_late_minutes: number | null;
   /** positive = late, negative = early, null = no scheduled exchange nearby */
   minutes_late: number | null;
+}
+
+/** POST /api/threads/:id/read */
+export interface ThreadReadResponse {
+  ok: true;
+  /** read receipts recorded by this call */
+  marked: number;
+  /** the caller's unread notification count afterwards */
+  unread: number;
 }
 
 /** POST /api/exchanges */
 export interface ExchangeCreated {
   id: number;
   scheduled_ms: number | null;
+  entered_late_minutes: number | null;
 }
 
 // ---------- calendar feeds ----------
@@ -738,10 +756,10 @@ export interface ReportLink {
 export type NotificationKind =
   | 'rule_requested' | 'rule_decided' | 'rule_retire_requested' | 'rule_retire_decided'
   | 'call_rule_requested' | 'call_rule_decided'
-  | 'event_proposed' | 'event_responded'
+  | 'event_proposed' | 'event_responded' | 'event_cancelled'
   | 'expense_requested' | 'expense_decided' | 'payment_sent' | 'payment_confirmed'
   | 'call_logged' | 'call_confirmed'
-  | 'message' | 'exchange_checkin' | 'member_joined' | 'member_left' | 'exchange_reminder';
+  | 'message' | 'exchange_checkin' | 'member_joined' | 'member_left' | 'member_removed' | 'family_updated' | 'exchange_reminder';
 
 /**
  * Shared link format: 'dashboard' | 'calendar' | 'schedule' | 'activities' | 'expenses' | 'messages'

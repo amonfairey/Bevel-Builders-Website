@@ -89,6 +89,8 @@ test('two-parent workflow end to end', async (t) => {
   const { id: th } = await mom.post('/api/threads', { subject: 'Winter break', body: 'Can we plan winter break dates by Friday?' });
   const thread = await dad.get(`/api/threads/${th}`);
   assert.equal(thread.messages.length, 1);
+  assert.equal((await mom.get(`/api/threads/${th}`)).messages[0].reads.length, 0, 'loading a thread records no read receipt');
+  await dad.post(`/api/threads/${th}/read`);
   assert.equal((await mom.get(`/api/threads/${th}`)).messages[0].reads.length, 1);
 
   // Call allowance: Dad gets 2 video calls a week; Mom logs one completed, one missed.

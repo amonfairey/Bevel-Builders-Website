@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import * as Linking from 'expo-linking';
 import { AppText, Badge, Button, ButtonRow, Card, NotesPanel, Row, useToast } from '@/components/ui';
-import { fmtDT, fmtT } from '@/lib/format';
+import { fmtDT, fmtIso, fmtT } from '@/lib/format';
 import { usePeople } from '@/lib/hooks';
 import { EXCHANGE_KIND } from '@/lib/status';
 import type { Tone } from '@/lib/theme';
@@ -26,6 +26,15 @@ function Line({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/**
+ * "Entered later" flag (same rule as the web portal and the report): the check-in was saved more than
+ * 10 minutes away from the time it describes, so the server receipt time is shown next to it.
+ */
+export function enteredLater(minutes: number | null | undefined): string | null {
+  if (minutes == null) return null;
+  return minutes > 0 ? 'Entered later' : 'Time is after it was saved';
+}
+
 /** One check-in: when, what, who, scheduled time and lateness, place, GPS link, notes. */
 export function ExchangeCard({ x }: { x: Exchange }) {
   const { tz, childNames } = usePeople();
@@ -35,6 +44,7 @@ export function ExchangeCard({ x }: { x: Exchange }) {
   const kids = childNames(x.child_ids);
   const kindLabel = EXCHANGE_KIND[x.kind] ?? x.kind;
   const isProblem = x.kind === 'no_show_other' || x.kind === 'late_other';
+  const later = enteredLater(x.entered_late_minutes);
 
   const openMap = async () => {
     if (x.lat == null || x.lng == null) return;
@@ -48,10 +58,14 @@ export function ExchangeCard({ x }: { x: Exchange }) {
           <AppText variant="headline">{kindLabel}</AppText>
           <AppText variant="subhead" tone="muted">{fmtDT(x.at_ms, tz)}</AppText>
         </View>
-        {late ? <Badge label={late.label} tone={late.tone} /> : null}
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          {late ? <Badge label={late.label} tone={late.tone} /> : null}
+          {later ? <Badge label={later} tone="warn" /> : null}
+        </View>
       </Row>
       <View style={{ marginTop: 6 }}>
         <Line label="By">{x.logged_by_name}</Line>
+        {later ? <Line label="Saved">{`${fmtIso(x.created_at, tz)} (server time)`}</Line> : null}
         <Line label="Scheduled">{x.scheduled_ms ? fmtT(x.scheduled_ms, tz) : 'No exchange scheduled near this time'}</Line>
         {kids ? <Line label="Children">{kids}</Line> : null}
         {x.location ? <Line label="Place">{x.location}</Line> : null}

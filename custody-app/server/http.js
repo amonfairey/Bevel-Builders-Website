@@ -22,19 +22,32 @@ export class Router {
     for (const r of this.routes) {
       if (r.method !== method) continue;
       const m = r.re.exec(pathname);
-      if (m) return { handler: r.handler, params: Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])) };
+      if (m) {
+        let params;
+        try { params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])); } catch { throw bad('Malformed URL'); }
+        return { handler: r.handler, params };
+      }
     }
     return null;
   }
 }
 
+/** True when the request's Content-Type is exactly application/json (parameters such as charset allowed). */
+export function isJsonType(header) {
+  return String(header ?? '').split(';')[0].trim().toLowerCase() === 'application/json';
+}
+
+/** Reads a JSON body, which must be an object ({} when empty). */
 export function readBody(req, limit = 12 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
     req.on('data', c => { size += c.length; if (size > limit) { reject(new HttpError(413, 'Request too large')); req.destroy(); } else chunks.push(c); });
     req.on('end', () => {
       if (!chunks.length) return resolve({});
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); } catch { reject(bad('Invalid JSON')); }
+      let v;
+      try { v = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return reject(bad('Invalid JSON')); }
+      if (v === null || typeof v !== 'object' || Array.isArray(v)) return reject(bad('The request body must be a JSON object'));
+      resolve(v);
     });
     req.on('error', reject);
   });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 import Constants from 'expo-constants';
 import { router, type Href } from 'expo-router';
 import {
@@ -13,7 +14,7 @@ import { useMe } from '@/lib/hooks';
 import { routes } from '@/lib/links';
 import { useSession } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
-import type { Me, OkResponse } from '@/lib/types';
+import type { Me, Member, OkResponse } from '@/lib/types';
 
 /**
  * Settings (web portal VIEWS.settings): family name / time zone / default split, people and
@@ -138,6 +139,19 @@ function People({ me }: { me: Me }) {
   const f = me.family;
   const isParent = me.role === 'parent';
 
+  // Parents can remove a view-only member (e.g. an attorney whose engagement ended). Parents cannot be removed.
+  const removeViewer = async (m: Member) => {
+    const ok = await dialog.confirm({
+      title: `Remove ${m.name}?`,
+      message: `${m.name} loses view-only access to your family's calendar and records. Your co-parent is told. To stop them rejoining, also make a new view-only code.`,
+      okLabel: 'Remove',
+      destructive: true,
+    });
+    if (!ok) return;
+    const r = await attempt(() => api.post<OkResponse>(`/api/members/${m.id}/remove`), `${m.name} removed`);
+    if (r) { try { await refreshMe(); } catch { /* shown on next refresh */ } }
+  };
+
   const newViewerCode = async () => {
     const ok = await dialog.confirm({
       title: 'Make a new view-only code?',
@@ -161,7 +175,15 @@ function People({ me }: { me: Me }) {
               title={`${deleted ? 'Deleted user' : m.name}${m.id === me.user.id ? ' (you)' : ''}`}
               subtitle={deleted ? `${role} · account deleted; past records are kept` : `${role} · ${m.email}`}
               left={<ParentDot id={m.id} size={12} />}
-              right={m.role === 'viewer' ? <Badge label="View only" tone="warn" /> : undefined}
+              right={m.role === 'viewer' ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Badge label="View only" tone="warn" />
+                  {isParent ? (
+                    <Button title="Remove" variant="danger" size="sm" onPress={() => { void removeViewer(m); }}
+                      accessibilityLabel={`Remove ${m.name}`} testID={`member-${m.id}-remove`} />
+                  ) : null}
+                </View>
+              ) : undefined}
               testID={`member-${m.id}`}
             />
           );

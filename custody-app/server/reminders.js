@@ -25,6 +25,8 @@ export function createReminderSweep({ db, api, notifier, logger = console }) {
     if (!c) return 0;
     const parents = c.members.filter(m => m.role === 'parent' && !isDeletedUser(m)).map(m => m.id);
     if (!parents.length) return 0;
+    // A hand-off needs two parents: a family that never had a co-parent has none, so it costs the sweep nothing.
+    if (c.allParents.length < 2) return 0;
     const from = addDays(utcToLocalDate(nowMs, c.tz), -1), to = addDays(utcToLocalDate(nowMs + DAY, c.tz), 2);
     const due = transitions(api.helpers.timelineFor(c, from, to).timeline)
       .filter(t => t.at > nowMs && t.at <= nowMs + DAY && t.from != null && t.to != null);

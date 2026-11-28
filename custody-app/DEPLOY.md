@@ -51,7 +51,8 @@ primary_region = "sjc"               # pick one near you
   dockerfile = "Dockerfile"
 
 [env]
-  TRUST_PROXY = "1"
+  # Fly's edge sets Fly-Client-IP to the real client address and overwrites any value the client sent.
+  TRUST_PROXY_HEADER = "fly-client-ip"
   # APP_STORE_URL = "https://apps.apple.com/app/id0000000000"
   # TESTFLIGHT_URL = "https://testflight.apple.com/join/XXXXXXXX"
 
@@ -107,6 +108,7 @@ services:
       mountPath: /app/data
       sizeGB: 1
     envVars:
+      # Render's proxy appends the client address to X-Forwarded-For: TRUST_PROXY=1 reads the right-most entry.
       - key: TRUST_PROXY
         value: "1"
       # - key: APP_STORE_URL
@@ -135,12 +137,29 @@ Any small Linux VPS (1 vCPU, 1 GB) with a DNS `A`/`AAAA` record pointing `copare
        reverse_proxy 127.0.0.1:3000
    }
    ```
-   `systemctl reload caddy`. Caddy gets and renews the Let's Encrypt certificate itself. It sets `X-Forwarded-For` to the real client address, which is what `TRUST_PROXY=1` reads.
+   `systemctl reload caddy`. Caddy gets and renews the Let's Encrypt certificate itself. Caddy (2.5 and later, without a `trusted_proxies` setting) replaces any `X-Forwarded-For` the client sent with the real client address, so the right-most (only) entry is the client, which is what `TRUST_PROXY=1` reads.
 4. Firewall: allow 22, 80 and 443 only (`ufw allow OpenSSH && ufw allow 80,443/tcp && ufw enable`).
 
 Without Docker: install Node 22.13+, then run `npm start` from `custody-app/` under systemd as an unprivileged user with `Environment=NODE_ENV=production TRUST_PROXY=1 DB_PATH=/var/lib/coparent/coparent.db`.
 
 To update: `git pull && docker build -t coparent-hub . && docker rm -f coparent && docker run ...` (same command as above; the volume keeps the data).
+
+## Client IP behind a proxy
+
+Rate limits (sign-in, sign-up, invite codes) are keyed on the client's IP address. Behind a reverse proxy the TCP peer is the proxy, so the server has to be told where the real address is, and only a value the proxy itself writes can be trusted: whatever a client puts in `X-Forwarded-For` is passed along, so the **left-most** entries can be forged and are never used.
+
+| Where you run | Setting | Why |
+|---|---|---|
+| Fly.io | `TRUST_PROXY_HEADER=fly-client-ip` | Fly's proxy sets `Fly-Client-IP` and overwrites any client-supplied value. |
+| Render | `TRUST_PROXY=1` | Render's proxy appends the address it received the connection from; that right-most entry is the client. |
+| VPS with Caddy | `TRUST_PROXY=1` | Caddy replaces the client's `X-Forwarded-For` with the real address (right-most and only entry). |
+| nginx | `TRUST_PROXY_HEADER=x-real-ip` with `proxy_set_header X-Real-IP $remote_addr;` (or `TRUST_PROXY=1` with `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`) | nginx writes the address it sees. |
+| Two proxies in a row (e.g. a CDN in front of Caddy) | the CDN's client-IP header via `TRUST_PROXY_HEADER` (e.g. `cf-connecting-ip` for Cloudflare), and only if the origin accepts connections from the CDN alone | the right-most `X-Forwarded-For` entry would be the CDN, so every client would share one limit. |
+| Clients connect directly | neither | the socket address is used. |
+
+To check: sign in once and look at what the proxy sends (temporarily log `req.headers` in `server/index.js`, or ask the platform's docs). The address used must change when you connect from another network and must not change when you send your own `X-Forwarded-For: 1.2.3.4` header.
+
+The limiter keeps its counters in memory (one server instance), prunes expired entries, and caps itself at 50,000 keys per limit.
 
 ## Environment variables
 
@@ -149,7 +168,8 @@ To update: `git pull && docker build -t coparent-hub . && docker rm -f coparent 
 | `PORT` | `3000` | HTTP port. |
 | `DB_PATH` | `data/coparent.db` (Docker: `/app/data/coparent.db`) | SQLite database file. Must be on persistent storage. |
 | `NODE_ENV` | unset (Docker: `production`) | `production` marks the session cookie `Secure` and turns exchange reminders on. |
-| `TRUST_PROXY` | off | `1`: use the first `X-Forwarded-For` entry as the client IP for rate limiting. Set it behind Caddy, Fly or Render; leave it off when clients connect directly, or anyone can pick their own rate-limit key. |
+| `TRUST_PROXY_HEADER` | unset | Name of a header your platform's edge sets to the client address **and overwrites** if a client sends it, e.g. `fly-client-ip` on Fly.io or `x-real-ip` behind an nginx that sets it. Takes precedence over `TRUST_PROXY`. See [Client IP behind a proxy](#client-ip-behind-a-proxy). |
+| `TRUST_PROXY` | off | `1`: use the **right-most** `X-Forwarded-For` entry (the one the nearest proxy appended) as the client IP for rate limiting. Set it behind Render or Caddy; leave it off when clients connect directly. |
 | `CORS_ORIGINS` | empty | Comma-separated exact origins allowed to call the API from a browser, only for the iPhone app's Expo web preview in development (e.g. `http://localhost:8081`). Leave empty in production; the web portal is same-origin and the native app doesn't need CORS. |
 | `PUSH_URL` | `https://exp.host/--/api/v2/push/send` | Expo push service endpoint. |
 | `PUSH_DISABLED` | off | `1` stops sending pushes. The in-app inbox still works. |

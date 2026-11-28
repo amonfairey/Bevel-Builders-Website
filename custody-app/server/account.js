@@ -2,6 +2,7 @@
 // Deletion is required in-app by Apple (App Store Review Guideline 5.1.1(v)).
 import { bad, HttpError } from './http.js';
 import { audit, hashPassword, verifyPassword, token, code, IMMUTABLE_TRIGGERS, DROP_IMMUTABLE_TRIGGERS } from './db.js';
+import { createLimiter } from './limits.js';
 
 /** Anonymized accounts keep their row (so authorship still resolves) under an address no one can register. */
 export const deletedEmail = (id) => `deleted-${id}@invalid`;
@@ -17,13 +18,11 @@ export function accountRoutes(r, { db, notifier }) {
   const tx = (fn) => { db.exec('BEGIN'); try { const v = fn(); db.exec('COMMIT'); return v; } catch (e) { db.exec('ROLLBACK'); throw e; } };
 
   // Wrong-password attempts per user, so a stolen session can't be used to guess the password.
-  const attempts = new Map();
-  function checkPassword(c, pw, msg) {
-    const now = Date.now();
-    const a = (attempts.get(c.user.id) || []).filter(t => now - t < 15 * 60000);
-    if (a.length >= 8) throw new HttpError(429, 'Too many attempts. Try again in 15 minutes.');
-    if (!verifyPassword(String(pw ?? ''), c.user.pass)) { a.push(now); attempts.set(c.user.id, a); throw bad(msg); }
-    attempts.delete(c.user.id);
+  const attempts = createLimiter({ windowMs: 15 * 60000, max: 8 });
+  async function checkPassword(c, pw, msg) {
+    if (attempts.limited(c.user.id)) throw new HttpError(429, 'Too many attempts. Try again in 15 minutes.');
+    if (!(await verifyPassword(String(pw ?? '').slice(0, 1000), c.user.pass))) { attempts.hit(c.user.id); throw bad(msg); }
+    attempts.clear(c.user.id);
   }
 
   /** Personal rows that never outlive the account: sign-ins, devices, report links, imported calendars, inbox. */
@@ -36,12 +35,14 @@ export function accountRoutes(r, { db, notifier }) {
     q('DELETE FROM notifications WHERE user_id = ?').run(uid);
   }
 
-  r.post('/api/account/password', ({ c, body, sessionToken }) => {
-    checkPassword(c, body.current, 'Current password is wrong');
+  r.post('/api/account/password', async ({ c, body, sessionToken }) => {
+    await checkPassword(c, body.current, 'Current password is wrong');
     const next = String(body.next ?? '');
     if (next.length < 10) throw bad('New password must be at least 10 characters');
+    if (next.length > 1000) throw bad('Password is too long');
+    const pass = await hashPassword(next);
     tx(() => {
-      q('UPDATE users SET pass = ? WHERE id = ?').run(hashPassword(next), c.user.id);
+      q('UPDATE users SET pass = ? WHERE id = ?').run(pass, c.user.id);
       // Sign out every other device (and stop pushing to them); keep the session making this request.
       q('DELETE FROM push_tokens WHERE user_id = ? AND (session_token IS NULL OR session_token <> ?)').run(c.user.id, sessionToken);
       q('DELETE FROM sessions WHERE user_id = ? AND token <> ?').run(c.user.id, sessionToken);
@@ -51,10 +52,10 @@ export function accountRoutes(r, { db, notifier }) {
     return { ok: true };
   });
 
-  r.post('/api/account/delete', ({ c, body, clearCookie }) => {
-    checkPassword(c, body.password, 'Password is wrong');
+  r.post('/api/account/delete', async ({ c, body, clearCookie }) => {
+    await checkPassword(c, body.password, 'Password is wrong');
     const remaining = c.family ? c.members.filter(m => m.id !== c.user.id && !isDeletedUser(m)) : [];
-    if (remaining.length) anonymize(c);
+    if (remaining.length) anonymize(c, await hashPassword(token(32)));
     else purge(c);
     clearCookie();
     return { ok: true };
@@ -62,12 +63,12 @@ export function accountRoutes(r, { db, notifier }) {
 
   // A co-parent or viewer remains: messages, notes and approvals this user took part in are also
   // the other parent's records, so the person is anonymized rather than erased.
-  function anonymize(c) {
+  function anonymize(c, unusablePass) {
     const uid = c.user.id, role = c.member.role, name = c.user.name, fid = c.family.id;
     tx(() => {
       deletePersonalRows(uid);
       q('UPDATE users SET name = ?, email = ?, pass = ?, ics_token = ? WHERE id = ?')
-        .run('Deleted user', deletedEmail(uid), hashPassword(token(32)), token(), uid);
+        .run('Deleted user', deletedEmail(uid), unusablePass, token(), uid);
       // Parents keep their members row so authorship of past records still resolves; viewers authored nothing.
       if (role === 'viewer') q('DELETE FROM members WHERE user_id = ?').run(uid);
       // A deleted parent no longer holds a parent place: a fresh invite code lets a new co-parent join

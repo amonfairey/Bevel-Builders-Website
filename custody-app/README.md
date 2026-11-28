@@ -7,7 +7,7 @@ The server runs on Node.js 22.13+ with **no npm dependencies** (it uses the buil
 ```bash
 cd custody-app
 npm start            # http://localhost:3000 (web portal + API)
-npm test             # engine, two-parent workflow, and platform tests (auth, push, reminders, account deletion)
+npm test             # engine, two-parent workflow, platform tests (auth, push, reminders, account deletion) and security regressions
 npm run backup       # consistent copy of the database to data/backups/
 ```
 
@@ -26,18 +26,18 @@ Main settings: `PORT` (default 3000), `DB_PATH` (default `data/coparent.db`), `N
 
 | Area | How it works |
 |---|---|
-| **Custody schedule** | Four layers, lowest to highest: **primary parent** (background default) → **regular pattern** (alternating weekends with optional midweek visit, every weekend, week on/off, 2-2-3, 2-2-5-5, 3-4-4-3, or a custom 1–56 day cycle) → **holidays & periods** (fixed date, Nth weekday, Easter, yearly ranges like summer/winter break, one-off dates; fixed parent or even/odd-year alternation; start/end offsets such as "Wed 6pm to Sun 6pm") → **one-time changes / swaps** (with optional make-up periods). All math runs in the family time zone, so a 6pm exchange stays 6pm across daylight saving changes. A pattern never applies before its start date. |
+| **Custody schedule** | Four layers, lowest to highest: **primary parent** (background default) → **regular pattern** (alternating weekends with optional midweek visit, every weekend, week on/off, 2-2-3, 2-2-5-5, 3-4-4-3, or a custom 1–56 day cycle) → **holidays & periods** (fixed date, Nth weekday, Easter, yearly ranges like summer/winter break, one-off dates; fixed parent or even/odd-year alternation; start/end offsets such as "Wed 6pm to Sun 6pm") → **one-time changes / swaps** (with optional make-up periods). All math runs in the family time zone, so a 6pm exchange stays 6pm across daylight saving changes (a time that doesn't exist on the spring-forward day, such as 2:30 AM, moves to 3:30 AM). A pattern never applies before its start date, and **ending or replacing an item never rewrites history**: it keeps applying to the time before it ended, and a new primary parent applies only from when the change took effect. |
 | **Approvals** | Every schedule item, change request, call schedule and request to end an item is *pending* until the other parent approves. The approver can open **"See impact on time share"** first. Decisions record who, when, and an optional note. Before the co-parent joins (or after a co-parent deletes their account), items take effect as **"not yet confirmed"**; the co-parent confirms or disputes them on joining. Replacing the regular schedule ends the old pattern once the new one is approved. |
 | **Time share** | Hours and overnights per parent for any date range (overnight = who has the children at 2:00 AM). Shown on the dashboard, the calendar (monthly) and the schedule page. |
 | **Calendar sync** | **Out:** each parent gets a private subscription URL (custody blocks, activities, or both) that Google Calendar, Apple Calendar and Outlook subscribe to. **In:** paste the secret iCal address of any Google, iCloud, Outlook, TeamSnap or school calendar, and its events show on the calendar (read-only), private to you or shared with the co-parent. |
 | **Activities** | Extracurriculars and appointments with repeats, location, driver, cost and children. Each shows whose custody time it falls in and flags when the driver isn't the custodial parent. New or edited activities need the other parent's acknowledgement. |
 | **Expenses** | Receipt upload (image/PDF, SHA-256 fingerprinted), per-expense split, approve/dispute (a dispute requires a reason), payments recorded by the sender and confirmed by the recipient, and a running balance. |
 | **Notes** | Attach to any schedule item, activity, expense, payment, call, exchange or calendar day, plus free-standing journal entries. Append-only, with optional attachments. |
-| **Messages** | Threads by topic. Messages can't be edited or deleted, and read times are recorded. Before sending, a tone check flags name-calling, profanity, always/never statements, blame, threats, using the kids as leverage, sarcasm, all caps and very long messages. The sender can still send anyway; the app never blocks. |
+| **Messages** | Threads by topic. Messages can't be edited or deleted, and read times are recorded when the other parent actually has the thread on screen (not when it is merely loaded). Before sending, a tone check flags name-calling, profanity, always/never statements, blame, threats, using the kids as leverage, sarcasm, all caps and very long messages. The sender can still send anyway; the app never blocks. |
 | **Calls & video** | Court-ordered contact rules (N calls per day/week/month, minimum length, allowed days and time window). Either parent logs what happened (completed, cut short, child not made available, parent didn't call, …), the other agrees or disputes, and a per-period compliance table results. |
-| **Exchanges** | One-tap check-in at a hand-off with optional GPS. The server timestamps it and computes minutes late against the scheduled exchange. |
-| **Records** | Every action goes into a per-family SHA-256 hash chain. Messages and notes are blocked from UPDATE/DELETE at the database level, and their text hashes are cross-checked. The **report** (Records → Open report → Print to PDF) covers time share, the approval history, exchanges, call compliance, expenses, payments, messages with read receipts, notes, and the integrity result. |
-| **Roles** | Two parents plus any number of **view-only** members (attorney, mediator, GAL, step-parent) via a separate, rotatable code. |
+| **Exchanges** | One-tap check-in at a hand-off with optional GPS. The server timestamps it and computes minutes late against the scheduled exchange. A parent may enter the time when logging later; the server's own save time is always kept and shown, and check-ins saved more than 10 minutes after the time entered are marked **Entered later** everywhere (web, iPhone, report). |
+| **Records** | Every action goes into a per-family SHA-256 hash chain. Messages, notes and exchange check-ins are blocked from UPDATE/DELETE at the database level (call logs can only receive the other parent's answer), and their contents are cross-checked against fingerprints recorded when they were saved. Rules, expenses, payments, activities and child info are covered by the audit entries that describe each change, not by a content fingerprint. The **report** (Records → Open report → Print to PDF) covers time share, the approval history, exchanges, call compliance, expenses, payments, messages with read receipts, notes, and the integrity result. |
+| **Roles** | Two parents plus any number of **view-only** members (attorney, mediator, GAL, step-parent) via a separate, rotatable code. A parent can remove a view-only member in Settings (the other parent is told). Invite codes are 80-bit and wrong codes are rate-limited. |
 | **Child info bank** | School, doctor, allergies, medications, sizes and emergency contact per child, shared and change-logged. |
 | **Notifications** | Requests, decisions, payments, calls, messages, check-ins and members joining or leaving land in an in-app inbox for the *other* parent (never the person who acted, never view-only members), with an unread count and a push to their iPhone. Both parents get a reminder 24 hours and 1 hour before every custody exchange. |
 | **Accounts** | Change password (signs out every other device). Delete account from inside the app, as Apple requires: a family with nobody else left is erased completely; if a co-parent or viewer remains, the account is anonymized so the shared record stays intact, and a deleted parent frees their place (a new invite code lets a new co-parent join). |
@@ -50,8 +50,14 @@ Main settings: `PORT` (default 3000), `DB_PATH` (default `data/coparent.db`), `N
 4. **One schedule per family.** If siblings follow different schedules, that is not modeled yet.
 5. **The tone check is keyword-based.** It catches obvious hostility and misses subtle hostility. An AI rewrite suggestion would be better (see roadmap).
 6. **Notifications are in-app and push only.** The inbox works everywhere. Push to the iPhone needs a deployed HTTPS server, an EAS project (`eas init`) and an Apple Developer account with an APNs key, and a physical device. There are no email or SMS notifications, so a parent without the iPhone app only sees notifications when they open the web portal.
-7. **Not fully hardened for public hosting.** Still missing: **password reset by email** (today a forgotten password can only be fixed by editing the database), two-factor login, and email verification. Backups are a command (`npm run backup`); scheduling them and copying them off the server is up to you (see DEPLOY.md). In place: scrypt password hashing, HttpOnly SameSite cookies or bearer tokens, rate limits on login, sign-up and password checks, password change that signs out other devices, in-app account deletion, per-family authorization on every query, a CSP, and an SSRF guard on calendar imports.
-8. **One server instance.** SQLite, reminders and rate limits live in one process, so run a single instance with a persistent volume (see DEPLOY.md).
+7. **Not fully hardened for public hosting.** Still missing: **password reset by email** (today a forgotten password can only be fixed by editing the database), two-factor login, and email verification. Backups are a command (`npm run backup`); scheduling them and copying them off the server is up to you (see DEPLOY.md). In place: scrypt password hashing (off the main thread, with equal work for unknown emails), HttpOnly SameSite cookies or bearer tokens, rate limits on login (per IP and a per-account slow-down that never locks the owner out), sign-up, invite codes, calendar syncs and password checks, password change that signs out other devices, in-app account deletion, per-family authorization on every query, strict JSON-only request bodies, a CSP, size limits on every schedule item and date range, per-family file storage (500 MB), and an SSRF guard on calendar imports that checks and pins the resolved address, with a 5 MB download cap.
+8. **One server instance.** SQLite, reminders and rate limits live in one process, so run a single instance with a persistent volume (see DEPLOY.md). Behind a proxy, set `TRUST_PROXY_HEADER` or `TRUST_PROXY` as DEPLOY.md describes for your platform, or every client shares one rate limit.
+9. **Known gaps from the latest security review.**
+   - **Time zone changes are not approved.** A parent can change the family time zone (which moves every custody time) or the default expense split without the other parent's approval. The change is audited with the before and after values and the other parent is notified (`family_updated`), but it takes effect at once.
+   - **Times people enter are not verified.** A parent can still enter an earlier time for an exchange, call, expense or payment. The server records when each entry was saved and shows it next to the entered time where they differ (exchanges more than 10 minutes apart are marked "Entered later"), but it can't know when something really happened.
+   - **Older records.** Items ended before this version without an audit `retire` entry stay out of the timeline (as before); exchanges and calls logged before this version have no content fingerprint (`records_not_content_checked` in `/api/audit/verify`). A disputed "not yet confirmed" item is treated as never agreed and is removed from history entirely.
+   - **The engine runs on the request thread.** Every input is size-limited (schedule items, 200 open items per family, 800-day ranges, 10-year reports, 100,000 blocks per computation), which bounds the worst request to a fraction of a second, but a busy family's largest report still briefly delays other requests.
+   - **Push tokens.** A device token registered to someone else can be taken over once their sign-in on it has ended; there is no proof that the caller holds the device.
 
 ## Suggested next features
 
@@ -73,7 +79,9 @@ Main settings: `PORT` (default 3000), `DB_PATH` (default `data/coparent.db`), `N
 server/index.js       HTTP server: cookie + bearer auth, CORS, /healthz, /report, /ics, options from env
 server/time.js        time-zone safe date math, holiday date rules
 server/schedule.js    custody engine: templates, layering, time share, transitions
-server/ics.js         iCalendar reader (TZID, RRULE, EXDATE) and writer
+server/ics.js         iCalendar reader (TZID, RRULE, EXDATE; capped) and writer
+server/fetch.js       calendar download: https only, checked and pinned address, no redirects, 5 MB cap
+server/limits.js      in-memory rate limiters with bounded memory
 server/tone.js        message tone check
 server/db.js          schema, append-only triggers, hash-chained audit log
 server/api.js         endpoints and approval workflows (calls notify() at each trigger)
@@ -86,7 +94,7 @@ server/report.js      printable records report
 scripts/backup.js     npm run backup (VACUUM INTO)
 public/               web portal: single-page app (vanilla JS, no build step)
 mobile/               iPhone app (Expo / React Native)
-test/                 engine unit tests, two-parent API workflow, platform tests
+test/                 engine unit tests, two-parent API workflow, platform tests, security regressions (security.test.js)
 API.md · DEPLOY.md    API reference · deployment guide
 Dockerfile            production image (node:22-slim, data volume at /app/data)
 ```

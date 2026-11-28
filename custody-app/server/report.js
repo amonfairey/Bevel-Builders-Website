@@ -1,10 +1,11 @@
 // Printable records report (open in a browser, then Print > Save as PDF).
 import { verifyFamily } from './db.js';
 import { timeShare } from './schedule.js';
-import { addDays, utcToLocalStamp } from './time.js';
+import { addDays, utcToLocalDate, utcToLocalStamp } from './time.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const money = (c) => `$${(c / 100).toFixed(2)}`;
+const ENTERED_LATE_MIN = 10;
 const STATUS_TEXT = { active: 'Approved', unconfirmed: 'Not yet confirmed by other parent', pending: 'Awaiting approval', rejected: 'Rejected', withdrawn: 'Withdrawn', retired: 'Ended' };
 
 export function renderReport(db, api, c, from, to) {
@@ -30,6 +31,11 @@ export function renderReport(db, api, c, from, to) {
   const comp = h.compliance(c, from, to);
   const verify = verifyFamily(db, fid);
   const who = (id) => esc(h.nameOf(c, id));
+  // Server receipt times, shown next to the times people entered when they differ.
+  const savedLine = (label, createdIso) => `<div class="muted">${esc(label)} ${esc(iso(createdIso))} (server time)</div>`;
+  const dateDiffers = (date, createdIso) => Number.isFinite(Date.parse(createdIso)) && utcToLocalDate(Date.parse(createdIso), tz) !== date;
+  const gps = (x) => (x.lat != null && x.lng != null && Number.isFinite(x.lat) && Number.isFinite(x.lng)
+    ? `<div class="muted">GPS ${x.lat.toFixed(5)}, ${x.lng.toFixed(5)}${x.accuracy != null && Number.isFinite(x.accuracy) ? ` (&plusmn;${Math.round(x.accuracy)} m)` : ''}</div>` : '');
 
   const section = (title, body) => `<section><h2>${esc(title)}</h2>${body}</section>`;
   const table = (cols, rows) => rows.length
@@ -40,28 +46,34 @@ export function renderReport(db, api, c, from, to) {
 
   const body = [
     section('Summary', `<p>Family: <b>${esc(c.family.name)}</b> &middot; Time zone: ${esc(tz)} &middot; Period: <b>${esc(from)}</b> to <b>${esc(addDays(to, -1))}</b></p>
-      <p>Generated ${esc(t(Date.now()))} by ${esc(c.user.name)}. Times are local to the family time zone. Server timestamps are recorded when each entry is saved; users cannot backdate entries.</p>`),
+      <p>Generated ${esc(t(Date.now()))} by ${esc(c.user.name)}. Times are local to the family time zone. The server records when each entry was saved, and that time cannot be changed.
+      Times people enter themselves (for exchanges, calls, expenses and payments) are shown alongside the server time where they differ; an exchange saved more than
+      ${ENTERED_LATE_MIN} minutes after the time entered is marked <b>entered later</b>.</p>`),
     section('Parenting time share (scheduled)', table(['Parent', 'Hours', '% of time', 'Overnights', '% of overnights'],
       share.byParent.map(p => [esc(p.name), p.hours.toFixed(1), `${p.pct}%`, p.overnights, `${p.nightPct}%`])) +
       '<p class="muted">Computed from the approved schedule rules below. "Overnight" = the parent with the children at 2:00 AM.</p>'),
     section('Schedule rules and change requests', table(['#', 'Type', 'Name', 'Requested', 'Status', 'Decision'],
       rules.map(r => [r.id, esc(r.type), esc(r.name) + (r.reason ? `<div class="muted">Reason: ${esc(r.reason)}</div>` : '') + notesFor('rule', r.id),
-        `${who(r.requested_by)}<br>${iso(r.requested_at)}`, esc(STATUS_TEXT[r.status] || r.status),
+        `${who(r.requested_by)}<br>${iso(r.requested_at)}`, esc(STATUS_TEXT[r.status] || r.status) + (r.status === 'retired' && r.ended_at != null ? `<div class="muted">Applied until ${esc(t(r.ended_at))}</div>` : ''),
         r.decided_by ? `${who(r.decided_by)}<br>${iso(r.decided_at)}${r.decision_note ? `<div class="muted">"${esc(r.decision_note)}"</div>` : ''}` : ''])
     )),
     section('Exchanges (hand-off check-ins)', table(['When', 'Type', 'Logged by', 'Scheduled', 'Late (min)', 'Location', 'Details'],
-      exchanges.map(x => [t(x.at_ms), esc(x.kind), who(x.logged_by), x.scheduled_ms ? t(x.scheduled_ms) : '', x.scheduled_ms ? Math.round((x.at_ms - x.scheduled_ms) / 60000) : '',
-        esc(x.location) + (x.lat != null ? `<div class="muted">GPS ${x.lat.toFixed(5)}, ${x.lng.toFixed(5)} (&plusmn;${Math.round(x.accuracy || 0)} m)</div>` : ''), esc(x.details) + notesFor('exchange', x.id)]))),
+      exchanges.map(x => {
+        const late = h.enteredLate(x.at_ms, x.created_at);
+        const when = t(x.at_ms) + (late != null ? `<div class="muted"><b>${late > 0 ? 'Entered later' : 'Time entered is after it was saved'}</b>: saved ${esc(iso(x.created_at))} (server time)</div>` : '');
+        return [when, esc(x.kind), who(x.logged_by), x.scheduled_ms ? t(x.scheduled_ms) : '', x.scheduled_ms ? Math.round((x.at_ms - x.scheduled_ms) / 60000) : '',
+          esc(x.location) + gps(x), esc(x.details) + notesFor('exchange', x.id)];
+      }))),
     section('Phone / video contact', comp.map(r => `<h3>${esc(r.rule.name)} &mdash; for ${esc(r.rule.entitled)}</h3>
       <p>Allowed ${r.totals.allowed}, completed ${r.totals.completed}, missed (not facilitated) ${r.totals.missed_not_facilitated}, missed (not called) ${r.totals.missed_not_called}, short ${r.totals.short}, disputed ${r.totals.disputed}, outside window ${r.totals.outside_window}</p>`).join('') +
       table(['When', 'Status', 'Minutes', 'Method', 'Logged by', 'Other parent', 'Details'],
-        calls.map(x => [esc(x.started_local.replace('T', ' ')), esc(x.status.replace(/_/g, ' ')), x.duration_min, esc(x.method), who(x.logged_by),
+        calls.map(x => [esc(x.started_local.replace('T', ' ')) + savedLine('Logged', x.created_at), esc(x.status.replace(/_/g, ' ')), x.duration_min, esc(x.method), who(x.logged_by),
           x.confirm_result ? `${esc(x.confirm_result)} (${iso(x.confirmed_at)})` : 'No response', esc(x.details) + notesFor('call', x.id)]))),
     section('Expenses', table(['Date', 'Description', 'Paid by', 'Amount', 'Other parent share', 'Status', 'Receipt'],
-      expenses.map(e => [esc(e.date), esc(e.description) + `<div class="muted">${esc(e.category)}</div>` + (e.decision_note ? `<div class="muted">Response: "${esc(e.decision_note)}"</div>` : '') + notesFor('expense', e.id),
+      expenses.map(e => [esc(e.date) + (dateDiffers(e.date, e.created_at) ? savedLine('Entered', e.created_at) : ''), esc(e.description) + `<div class="muted">${esc(e.category)}</div>` + (e.decision_note ? `<div class="muted">Response: "${esc(e.decision_note)}"</div>` : '') + notesFor('expense', e.id),
         who(e.paid_by), money(e.amount_cents), `${e.other_share_pct}% = ${money(Math.round(e.amount_cents * e.other_share_pct / 100))}`, esc(e.status), e.receipt_hash ? `SHA-256 ${e.receipt_hash.slice(0, 16)}&hellip;` : 'None'])) +
       '<h3>Reimbursement payments</h3>' + table(['Date', 'From', 'To', 'Amount', 'Method', 'Status'],
-        payments.map(p => [esc(p.date), who(p.from_user), who(p.to_user), money(p.amount_cents), esc(p.method), esc(p.status) + (p.confirmed_at ? ` ${iso(p.confirmed_at)}` : '')]))),
+        payments.map(p => [esc(p.date) + (dateDiffers(p.date, p.created_at) ? savedLine('Entered', p.created_at) : ''), who(p.from_user), who(p.to_user), money(p.amount_cents), esc(p.method), esc(p.status) + (p.confirmed_at ? ` ${iso(p.confirmed_at)}` : '')]))),
     section('Messages', threads.map(th => {
       const ms = messages.filter(m => m.thread_id === th.id);
       if (!ms.length) return '';
@@ -75,8 +87,9 @@ export function renderReport(db, api, c, from, to) {
     section('Record integrity', `<p>Audit log entries: <b>${verify.entries}</b>. Chain check: <b>${verify.ok ? 'PASSED' : 'FAILED'}</b>.</p>
       ${verify.problems.length ? `<ul>${verify.problems.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
       <p>Chain head hash: <code>${esc(verify.head)}</code></p>
-      <p class="muted">Every create, approval and change is appended to a SHA-256 hash chain. Messages and notes are append-only and their text is hashed when saved;
-      changing any stored record breaks the chain. This shows records were not altered after the fact relative to the head hash above; it does not by itself
+      ${verify.records_not_content_checked ? `<p class="muted">${verify.records_not_content_checked} exchange or call entries were logged before content fingerprints were recorded and are covered by the chain only.</p>` : ''}
+      <p class="muted">Every create, approval and change is appended to a SHA-256 hash chain. Messages, notes and exchange check-ins are append-only, call logs can only
+      receive the other parent's answer, and the content of each is fingerprinted when saved and cross-checked here; changing any stored record breaks the chain. This shows records were not altered after the fact relative to the head hash above; it does not by itself
       make a record admissible. Admissibility is decided by the court under local rules of evidence. Consult your attorney.</p>`),
   ].join('');
 

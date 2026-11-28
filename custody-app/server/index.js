@@ -2,15 +2,15 @@ import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { openDb, token } from './db.js';
-import { buildApi } from './api.js';
-import { HttpError, parseCookies, readBody, send, serveStatic } from './http.js';
+import { buildApi, MAX_REPORT_DAYS } from './api.js';
+import { HttpError, isJsonType, parseCookies, readBody, send, serveStatic } from './http.js';
 import { buildIcs } from './ics.js';
 import { renderReport } from './report.js';
 import { createPush, DEFAULT_PUSH_URL } from './push.js';
 import { createNotifier } from './notify.js';
 import { createReminderSweep } from './reminders.js';
 import { dropPrivileges } from './privileges.js';
-import { addDays, isDate, utcToLocalDate, ymd, parseDate } from './time.js';
+import { addDays, diffDays, isDate, utcToLocalDate, ymd, parseDate } from './time.js';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(ROOT, '..', 'public');
@@ -38,13 +38,15 @@ export function createApp({
   pushAccessToken = env.EXPO_ACCESS_TOKEN || null,
   reminders = env.REMINDERS ? flag(env.REMINDERS) : env.NODE_ENV === 'production',
   trustProxy = flag(env.TRUST_PROXY),
+  trustProxyHeader = String(env.TRUST_PROXY_HEADER || '').trim().toLowerCase() || null,
   appStoreUrl = env.APP_STORE_URL || null,
   testflightUrl = env.TESTFLIGHT_URL || null,
+  fileQuotaBytes = undefined, // per-family file storage (default 500 MB; tests lower it)
 } = {}) {
   const db = openDb(dbPath);
   const push = createPush(db, { url: pushUrl, disabled: pushDisabled, accessToken: pushAccessToken });
   const notifier = createNotifier(db, push);
-  const api = buildApi(db, { allowPrivateFeeds, notifier, publicConfig: { appStoreUrl, testflightUrl } });
+  const api = buildApi(db, { allowPrivateFeeds, notifier, fileQuotaBytes, publicConfig: { appStoreUrl, testflightUrl } });
   const sweepReminders = createReminderSweep({ db, api, notifier });
   const q = (sql) => db.prepare(sql);
   const allowedOrigins = new Set(corsOrigins);
@@ -70,8 +72,20 @@ export function createApp({
     const user = s && q('SELECT * FROM users WHERE id = ?').get(s.user_id);
     return user ? { user, token: t, via: 'cookie' } : { user: null };
   }
+  // The address rate limits are keyed on (see DEPLOY.md, "Client IP behind a proxy"):
+  //  - TRUST_PROXY_HEADER=<name>: a header the platform's edge sets and overwrites (Fly.io: fly-client-ip);
+  //  - TRUST_PROXY=1: the right-most X-Forwarded-For entry, the one the nearest (trusted) proxy appended.
+  //    Entries to its left come from the client and can be forged, so they are never used;
+  //  - otherwise the TCP peer address.
   const clientIp = (req) => {
-    if (trustProxy) { const first = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim(); if (first) return first; }
+    if (trustProxyHeader) {
+      const v = String(req.headers[trustProxyHeader] || '').split(',')[0].trim();
+      if (v) return v.slice(0, 100);
+    }
+    if (trustProxy) {
+      const last = String(req.headers['x-forwarded-for'] || '').split(',').map(x => x.trim()).filter(Boolean).pop();
+      if (last) return last.slice(0, 100);
+    }
     return req.socket.remoteAddress;
   };
   const cookie = (v, maxAge) => `sid=${v}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureCookies ? '; Secure' : ''}`;
@@ -88,7 +102,8 @@ export function createApp({
   }
 
   async function handle(req, res) {
-    const url = new URL(req.url, 'http://local');
+    let url;
+    try { url = new URL(req.url, 'http://local'); } catch { return send(res, 400, { error: 'Malformed URL' }); }
     const path = url.pathname;
     const extraHeaders = {};
 
@@ -149,21 +164,26 @@ export function createApp({
         const y = parseDate(utcToLocalDate(Date.now(), c.tz)).y;
         const from = isDate(url.searchParams.get('start')) ? url.searchParams.get('start') : ymd(y, 1, 1);
         const toIncl = isDate(url.searchParams.get('end')) ? url.searchParams.get('end') : utcToLocalDate(Date.now(), c.tz);
+        if (toIncl < from || diffDays(toIncl, from) + 1 > MAX_REPORT_DAYS) {
+          return send(res, 400, { error: `A report can cover 1 to ${MAX_REPORT_DAYS} days (about 10 years). Choose a shorter period.` });
+        }
         return send(res, 200, renderReport(db, api, c, from, addDays(toIncl, 1)), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
           'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" });
       }
 
       if (!user && path === '/api/me' && req.method === 'GET') return send(res, 200, { user: null });
       if (!user && !isPublic) return send(res, 401, { error: 'Sign in required' });
-      if (req.method !== 'GET' && !String(req.headers['content-type'] || '').includes('application/json') && req.headers['content-length'] !== '0' && req.headers['content-length']) {
-        return send(res, 415, { error: 'JSON required' });
-      }
+      // Every request that carries a body (a non-zero Content-Length, or any Transfer-Encoding) must be exactly
+      // application/json. This is also the CSRF guard: a cross-site form or no-CORS fetch can't send that type.
+      const noBody = req.method === 'GET' || req.method === 'HEAD';
+      const hasBody = !!req.headers['transfer-encoding'] || (req.headers['content-length'] !== undefined && req.headers['content-length'] !== '0');
+      if (!noBody && hasBody && !isJsonType(req.headers['content-type'])) return send(res, 415, { error: 'JSON required' });
       const m = api.match(req.method, path);
       if (!m) return send(res, 404, { error: 'Not found' });
       let raw = null;
       const ctx = {
         params: m.params, query: Object.fromEntries(url.searchParams), ip: clientIp(req),
-        body: req.method === 'GET' ? {} : await readBody(req),
+        body: noBody || !hasBody ? {} : await readBody(req),
         c: user ? api.helpers.loadCtx(user) : null,
         sessionToken: user ? auth.token : null,
         /** Starts a session; returns its token. cookie:false is the native-client flow (token goes in the body). */
