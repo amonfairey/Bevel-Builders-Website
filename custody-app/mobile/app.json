@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "CoParent Hub",
+    "slug": "coparent-hub",
+    "scheme": "coparenthub",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "primaryColor": "#2f6f9f",
+    "ios": {
+      "bundleIdentifier": "com.example.coparenthub",
+      "buildNumber": "1",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "CoParent Hub attaches your location to an exchange check-in only when you tap \"Attach my location\", so the record shows where the hand-off happened.",
+        "NSCameraUsageDescription": "CoParent Hub uses the camera only when you choose to photograph a receipt or a document to attach to an expense or note.",
+        "NSPhotoLibraryUsageDescription": "CoParent Hub opens your photo library only when you choose a receipt or document photo to attach to an expense or note.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.example.coparenthub",
+      "adaptiveIcon": {
+        "backgroundColor": "#2f6f9f",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#2f6f9f"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "CoParent Hub attaches your location to an exchange check-in only when you tap \"Attach my location\", so the record shows where the hand-off happened."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "CoParent Hub opens your photo library only when you choose a receipt or document photo to attach to an expense or note.",
+          "cameraPermission": "CoParent Hub uses the camera only when you choose to photograph a receipt or a document to attach to an expense or note.",
+          "microphonePermission": false
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "apiUrl": "http://localhost:3000",
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}

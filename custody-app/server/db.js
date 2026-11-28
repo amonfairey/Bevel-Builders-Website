@@ -87,6 +87,21 @@ CREATE TABLE IF NOT EXISTS audit(
   id INTEGER PRIMARY KEY, family_id INTEGER NOT NULL, seq INTEGER NOT NULL, ts TEXT NOT NULL,
   user_id INTEGER, action TEXT NOT NULL, entity TEXT NOT NULL, entity_id TEXT, data TEXT NOT NULL,
   prev_hash TEXT NOT NULL, hash TEXT NOT NULL, UNIQUE(family_id, seq));
+-- Platform tables (web portal + iPhone app). All IF NOT EXISTS so an existing database file upgrades in place.
+CREATE TABLE IF NOT EXISTS report_links(token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS notifications(
+  id INTEGER PRIMARY KEY, family_id INTEGER NOT NULL, user_id INTEGER NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '', link TEXT NOT NULL, entity TEXT, entity_id TEXT, created_at TEXT NOT NULL, read_at TEXT);
+-- session_token ties a device registration to the sign-in that made it, so signing out (or a password change) stops pushes to that device.
+CREATE TABLE IF NOT EXISTS push_tokens(
+  token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, platform TEXT NOT NULL, created_at TEXT NOT NULL, last_seen TEXT NOT NULL,
+  session_token TEXT REFERENCES sessions(token) ON DELETE CASCADE);
+CREATE TABLE IF NOT EXISTS reminders_sent(family_id INTEGER NOT NULL, at_ms INTEGER NOT NULL, kind TEXT NOT NULL, PRIMARY KEY(family_id, at_ms, kind));
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_session ON push_tokens(session_token);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_report_links_user ON report_links(user_id);
 CREATE INDEX IF NOT EXISTS idx_events_family ON events(family_id);
 CREATE INDEX IF NOT EXISTS idx_notes_target ON notes(family_id, target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id);
@@ -96,9 +111,13 @@ CREATE INDEX IF NOT EXISTS idx_feed_events ON feed_events(feed_id, start_ms);
 // Hard protections: records that may be used as evidence cannot be changed or
 // deleted through SQL either (short of dropping the triggers, which the hash
 // chain would still expose).
-const IMMUTABLE_TRIGGERS = ['messages', 'notes', 'audit'].map(t => `
+export const IMMUTABLE_TABLES = ['messages', 'notes', 'audit'];
+export const IMMUTABLE_TRIGGERS = IMMUTABLE_TABLES.map(t => `
 CREATE TRIGGER IF NOT EXISTS ${t}_no_update BEFORE UPDATE ON ${t} BEGIN SELECT RAISE(ABORT, '${t} are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS ${t}_no_delete BEFORE DELETE ON ${t} BEGIN SELECT RAISE(ABORT, '${t} are append-only'); END;`).join('\n');
+
+/** Only used by account deletion's family purge, inside a transaction that re-creates them (see account.js). */
+export const DROP_IMMUTABLE_TRIGGERS = IMMUTABLE_TABLES.map(t => `DROP TRIGGER IF EXISTS ${t}_no_update; DROP TRIGGER IF EXISTS ${t}_no_delete;`).join('\n');
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });

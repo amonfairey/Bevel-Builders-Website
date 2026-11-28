@@ -32,7 +32,36 @@ const get = (p) => api('GET', p), post = (p, b) => api('POST', p, b || {}), put 
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2600); }
 async function attempt(fn, okMsg) {
-  try { const r = await fn(); if (okMsg) toast(okMsg); return r; } catch (e) { toast(e.message); throw e; }
+  try { const r = await fn(); if (okMsg) toast(okMsg); return r; } catch (e) { toast(e.message); if (e && typeof e === 'object') e.shown = true; throw e; }
+}
+// Errors from attempt() were already shown to the person as a toast; don't also report them as uncaught.
+window.addEventListener('unhandledrejection', (e) => { if (e.reason?.shown || e.reason?.message === 'Signed out') e.preventDefault(); });
+
+// ---------- icons (inline SVG, stroke = currentColor) ----------
+const ICONS = {
+  bell: ['M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9', 'M10.3 21a1.94 1.94 0 0 0 3.4 0'],
+  calendar: ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z'],
+  approve: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'M8.5 12.5l2.5 2.5 4.5-5'],
+  pie: ['M21.2 15.9A10 10 0 1 1 8 2.8', 'M22 12A10 10 0 0 0 12 2v10z'],
+  sync: ['M21 12a9 9 0 0 1-15.4 6.4L3 16', 'M3 12a9 9 0 0 1 15.4-6.4L21 8', 'M21 3v5h-5', 'M3 21v-5h5'],
+  flag: ['M4 22V4', 'M4 4h13l-2.5 4L17 12H4'],
+  dollar: ['M12 2v20', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'],
+  message: ['M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'M8 9h8', 'M8 13h5'],
+  phone: ['M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z'],
+  pin: ['M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z', 'M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z'],
+  shield: ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', 'M9 12l2 2 4-4'],
+  users: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M22 21v-2a4 4 0 0 0-3-3.9', 'M16 3.1a4 4 0 0 1 0 7.8'],
+  home: ['M3 10.5 12 3l9 7.5', 'M5 9v12h14V9'],
+  check: ['M20 6 9 17l-5-5'],
+  device: ['M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z', 'M11 18h2'],
+  menu: ['M4 6h16', 'M4 12h16', 'M4 18h16'],
+};
+function icon(name, size = 18) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: size, height: size, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false', class: 'ic' })) svg.setAttribute(k, v);
+  for (const d of ICONS[name] || []) { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); svg.append(p); }
+  return svg;
 }
 
 function modal(title, body, { wide } = {}) {
@@ -157,59 +186,174 @@ function notesPanel(targetType, targetId) {
 
 // ---------- shell & routing ----------
 const NAV = [
-  ['dashboard', 'Home'], ['calendar', 'Calendar'], ['schedule', 'Custody schedule', 'rules'], ['activities', 'Activities', 'events'],
+  ['dashboard', 'Home'], ['notifications', 'Notifications'], ['calendar', 'Calendar'], ['schedule', 'Custody schedule', 'rules'], ['activities', 'Activities', 'events'],
   ['expenses', 'Expenses', 'expenses+payments'], ['messages', 'Messages', 'messages'], ['calls', 'Calls & video', 'call_rules+calls'],
   ['exchanges', 'Exchanges'], ['sync', 'Calendar sync'], ['records', 'Records & reports'], ['settings', 'Settings'],
 ];
 const VIEWS = {};
 let pendingCounts = {};
+/** '#/messages/12' -> ['messages', '12'] */
+const routeParts = () => location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+
+/** Unread notification count: sidebar entry, mobile top bar, tab title. */
+const unreadBadge = (n) => h('span', { class: 'count', 'data-unread-badge': '', hidden: !n, 'aria-label': `${n} unread` }, n > 99 ? '99+' : n);
+function setUnread(n) {
+  n = Math.max(0, +n || 0);
+  if (S.me) S.me.unread_notifications = n;
+  for (const el of document.querySelectorAll('[data-unread-badge]')) { el.textContent = n > 99 ? '99+' : String(n); el.hidden = !n; el.setAttribute('aria-label', `${n} unread`); }
+  document.title = n && S.me?.family ? `(${n}) CoParent Hub` : 'CoParent Hub';
+}
+async function refreshUnread() {
+  if (!S.me?.user) return;
+  try {
+    const r = await get('/api/me');
+    if (!r?.user) { S.me = null; render(); return; } // session ended elsewhere (e.g. password changed on another device)
+    setUnread(r.unread_notifications);
+  } catch { /* offline or server restarting: keep the last count */ }
+}
+let unreadTimer = null;
+function startUnreadPolling() {
+  if (unreadTimer) return;
+  unreadTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshUnread(); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshUnread(); });
+}
 
 async function render() {
   const app = $('#app');
   if (!S.me) {
     try { S.me = await get('/api/me'); if (!S.me?.user) S.me = null; } catch { S.me = null; }
   }
-  if (!S.me) return renderAuth(app);
-  if (!S.me.family) return renderSetup(app);
-  const route = (location.hash.replace(/^#\/?/, '').split('/')[0]) || 'dashboard';
-  const main = h('main');
+  if (!S.me) { document.title = 'CoParent Hub'; return renderAuth(app); }
+  if (!S.me.family) { document.title = 'CoParent Hub'; return renderSetup(app); }
+  startUnreadPolling();
+  const route = routeParts()[0] || 'dashboard';
+  const unread = S.me.unread_notifications || 0;
+  const main = h('main', { id: 'main' });
   const side = h('nav', { class: 'side', 'aria-label': 'Main' },
-    h('div', { class: 'brand' }, h('span', { class: 'brand-mark' }), 'CoParent Hub'),
+    h('div', { class: 'brand' }, h('img', { class: 'brand-mark', src: '/icons/icon.svg', alt: '' }), 'CoParent Hub'),
     h('div', { class: 'nav' }, NAV.map(([k, label, countKey]) => {
+      if (k === 'notifications') {
+        return h('a', { href: '#/notifications', class: route === k ? 'on' : '', 'aria-current': route === k ? 'page' : null, onclick: () => side.classList.remove('open') },
+          h('span', { class: 'nav-label' }, icon('bell', 16), label), unreadBadge(unread));
+      }
       const n = countKey ? countKey.split('+').reduce((s, x) => s + (pendingCounts[x] || 0), 0) : 0;
-      return h('a', { href: `#/${k}`, class: route === k ? 'on' : '', onclick: () => side.classList.remove('open') }, label, n ? h('span', { class: 'count' }, n) : null);
+      return h('a', { href: `#/${k}`, class: route === k ? 'on' : '', 'aria-current': route === k ? 'page' : null, onclick: () => side.classList.remove('open') }, label, n ? h('span', { class: 'count' }, n) : null);
     })),
     h('div', { class: 'side-foot' }, h('div', null, S.me.user.name), h('div', { class: 'muted' }, S.me.family.name, S.me.role === 'viewer' ? ' · view only' : ''),
-      h('button', { class: 'link', style: 'margin-top:6px', onclick: async () => { await post('/api/logout'); S.me = null; render(); } }, 'Sign out')));
-  const menu = h('button', { class: 'menu-btn', style: 'margin-bottom:10px', onclick: () => side.classList.toggle('open') }, 'Menu');
-  app.replaceChildren(h('div', { class: 'shell' }, side, h('div', null, h('div', { style: 'padding:0 16px' }, menu), main)));
+      h('button', { class: 'link', style: 'margin-top:6px', onclick: signOut }, 'Sign out')));
+  const scrim = h('div', { class: 'scrim', onclick: () => side.classList.remove('open') });
+  const topbar = h('div', { class: 'topbar' },
+    h('button', { class: 'menu-btn', 'aria-label': 'Menu', onclick: () => side.classList.toggle('open') }, icon('menu', 18), 'Menu'),
+    h('span', { class: 'topbar-brand' }, S.me.family.name),
+    h('a', { class: 'btn icon-btn', href: '#/notifications', 'aria-label': 'Notifications' }, icon('bell', 18), unreadBadge(unread)));
+  app.replaceChildren(h('div', { class: 'shell' }, side, scrim, h('div', { class: 'shell-main' }, topbar, main)));
+  setUnread(unread);
   try { await (VIEWS[route] || VIEWS.dashboard)(main); } catch (e) { if (e.message !== 'Signed out') mount(main, h('div', { class: 'alert bad' }, e.message)); }
 }
-window.addEventListener('hashchange', () => { $('#modal-root').replaceChildren(); render(); });
+window.addEventListener('hashchange', () => { $('#modal-root').replaceChildren(); render().then(refreshUnread); });
 async function refreshMe() { S.me = await get('/api/me'); }
+async function signOut() {
+  try { await post('/api/logout'); } catch { /* already signed out */ }
+  S.me = null; openThread = null; history.replaceState(null, '', location.pathname); render();
+}
 const head = (title, sub, ...actions) => h('div', { class: 'page-head' }, h('div', null, h('h1', null, title), sub ? h('div', { class: 'muted' }, sub) : null), h('div', { class: 'row' }, actions));
 
 // ---------- auth & setup ----------
-function renderAuth(app) {
-  let mode = 'login';
-  const draw = () => {
-    const form = h('form', { class: 'card', onsubmit: async (e) => {
+const FEATURES = [
+  ['approve', 'Custody schedule, approved by both', 'Set up a regular rotation (alternating weekends, 2-2-3, week on / week off or your own cycle), holidays and one-time swaps. Every change is a request the other parent approves or declines.'],
+  ['pie', 'Time-share tracking', 'See each parent’s share of time and overnights for the year, year to date or any range, and what a proposed change would do before you agree to it.'],
+  ['sync', 'Calendar sync', 'Subscribe from Google Calendar, Apple Calendar or Outlook to see custody time and activities next to your own events. Bring work or school calendars in to spot conflicts.'],
+  ['flag', 'Activities', 'Sports, lessons, school events and appointments, with who is driving and whose custody time each one falls in. The other parent acknowledges each one.'],
+  ['dollar', 'Expenses & reimbursement', 'Log shared costs with receipts and your agreed split. The other parent approves or disputes; payments are confirmed by the parent who received them.'],
+  ['message', 'Tone-checked messages', 'Each message gets a tone check before it is sent. Messages can’t be edited or deleted, and read times are recorded.'],
+  ['phone', 'Court-ordered call tracking', 'Enter the phone and video contact your order allows, log what actually happened, and let the other parent agree with or dispute each entry.'],
+  ['pin', 'Exchange check-ins', 'Check in at hand-offs, optionally with your location. The server timestamps each check-in and compares it with the scheduled exchange time.'],
+  ['shield', 'Court-ready records', 'An append-only, hash-chained log makes later changes detectable. Print a report or save it as PDF for your attorney or mediator.'],
+];
+const STEPS = [
+  ['Create your family space', 'Sign up, add your children and pick your time zone. You start as the primary parent, marked “not yet confirmed”.'],
+  ['Invite your co-parent', 'Share the one-time invite code. Attorneys, mediators or step-parents can join with a separate view-only code.'],
+  ['Approve the schedule together', 'Your co-parent confirms the primary parent and approves the regular schedule and holidays. From then on, every change needs both of you.'],
+];
+
+/** Public landing page for signed-out visitors, with sign-in / create-account. */
+function renderAuth(app, initialMode = 'login') {
+  let mode = initialMode;
+  const cardBox = h('div', { class: 'auth-slot', id: 'auth' });
+  const drawCard = (focus) => {
+    const err = h('p', { class: 'form-error', role: 'alert', hidden: true });
+    const submit = h('button', { class: 'primary', type: 'submit' }, mode === 'login' ? 'Sign in' : 'Create account');
+    const form = h('form', { class: 'card auth-card', 'aria-labelledby': 'auth-title', onsubmit: async (e) => {
       e.preventDefault();
-      const v = formValues(form);
-      await attempt(() => post(mode === 'login' ? '/api/login' : '/api/register', v));
-      S.me = null; render();
+      err.hidden = true; submit.disabled = true;
+      try {
+        await post(mode === 'login' ? '/api/login' : '/api/register', formValues(form));
+        S.me = null; history.replaceState(null, '', location.pathname); render();
+      } catch (x) { err.textContent = x.message; err.hidden = false; submit.disabled = false; }
     } },
-      h('h1', null, mode === 'login' ? 'Sign in' : 'Create your account'),
-      h('p', { class: 'muted' }, 'A shared, neutral record for co-parents: schedule, costs, messages and calls.'),
-      mode === 'register' ? field('Your name', inp('name', { required: true, autocomplete: 'name' })) : null,
+      h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Account' },
+        [['login', 'Sign in'], ['register', 'Create account']].map(([m, l]) => h('button', { type: 'button', role: 'tab', 'aria-selected': String(mode === m), onclick: () => { if (mode !== m) { mode = m; drawCard(true); } } }, l))),
+      h('h2', { id: 'auth-title' }, mode === 'login' ? 'Welcome back' : 'Create your account'),
+      mode === 'register' ? h('p', { class: 'small muted', style: 'margin-top:-4px' }, 'Each parent uses their own account. Your co-parent joins later with an invite code.') : null,
+      err,
+      mode === 'register' ? field('Your name', inp('name', { required: true, autocomplete: 'name', maxlength: 100 })) : null,
       field('Email', inp('email', { type: 'email', required: true, autocomplete: 'email' })),
       field('Password', inp('password', { type: 'password', required: true, minlength: mode === 'register' ? 10 : null, autocomplete: mode === 'login' ? 'current-password' : 'new-password' }), mode === 'register' ? 'At least 10 characters.' : null),
-      h('button', { class: 'primary', type: 'submit' }, mode === 'login' ? 'Sign in' : 'Create account'),
-      h('p', { class: 'small' }, mode === 'login' ? 'New here? ' : 'Have an account? ',
-        h('button', { type: 'button', class: 'link', onclick: () => { mode = mode === 'login' ? 'register' : 'login'; draw(); } }, mode === 'login' ? 'Create an account' : 'Sign in')));
-    app.replaceChildren(h('div', { class: 'auth' }, form));
+      submit,
+      h('p', { class: 'small muted', style: 'margin:12px 0 0;text-align:center' }, mode === 'login' ? 'New here? ' : 'Already have an account? ',
+        h('button', { type: 'button', class: 'link', onclick: () => { mode = mode === 'login' ? 'register' : 'login'; drawCard(true); } }, mode === 'login' ? 'Create an account' : 'Sign in')));
+    cardBox.replaceChildren(form);
+    if (focus) form.querySelector('input')?.focus({ preventScroll: true });
   };
-  draw();
+  const goAuth = (m) => { mode = m; drawCard(true); cardBox.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+
+  const iphone = h('div', { class: 'store-btns' }, h('p', { class: 'muted', style: 'margin:0' }, 'Checking…'));
+  get('/api/public-config').then(cfg => {
+    const links = [cfg?.appStoreUrl ? h('a', { class: 'btn primary', href: cfg.appStoreUrl, target: '_blank', rel: 'noopener' }, icon('device', 18), 'Download on the App Store') : null,
+      cfg?.testflightUrl ? h('a', { class: 'btn', href: cfg.testflightUrl, target: '_blank', rel: 'noopener' }, 'Join the TestFlight beta') : null].filter(Boolean);
+    iphone.replaceChildren(...(links.length ? links : [h('p', { class: 'coming-soon' }, h('b', null, 'iPhone app coming soon.'), ' Until then, this site works in Safari on iPhone: tap Share, then “Add to Home Screen”.')]));
+  }).catch(() => iphone.replaceChildren(h('p', { class: 'coming-soon' }, h('b', null, 'iPhone app coming soon.'))));
+
+  const phoneMock = h('div', { class: 'phone-mock', 'aria-hidden': 'true' },
+    h('div', { class: 'pm-notch' }),
+    h('div', { class: 'pm-time' }, '9:41'),
+    [['approve', 'Schedule change requested', 'Swap weekend of the 12th'], ['message', 'New message', 'Can we move pickup to 5:30?'], ['calendar', 'Exchange tomorrow', 'Drop-off at 6:00 PM']]
+      .map(([ic, t, b]) => h('div', { class: 'pm-note' }, h('span', { class: 'pm-ic' }, icon(ic, 14)), h('div', null, h('b', null, t), h('div', null, b)))));
+
+  drawCard(false);
+  app.replaceChildren(h('div', { class: 'landing' },
+    h('header', { class: 'l-wrap l-top' },
+      h('div', { class: 'brand', style: 'padding:0' }, h('img', { class: 'brand-mark', src: '/icons/icon.svg', alt: '' }), 'CoParent Hub'),
+      h('div', { class: 'row', style: 'gap:8px' }, h('button', { onclick: () => goAuth('login') }, 'Sign in'), h('button', { class: 'primary hide-xs', onclick: () => goAuth('register') }, 'Create account'))),
+    h('main', { class: 'l-main' },
+      h('section', { class: 'l-wrap l-hero' },
+        h('div', null,
+          h('div', { class: 'eyebrow' }, 'For parents raising children across two homes'),
+          h('h1', null, 'One calm, shared record for co-parenting.'),
+          h('p', { class: 'lead' }, 'CoParent Hub keeps the custody schedule, activities, expenses, messages and calls in one place both parents see. Changes take effect only when both of you approve, and every entry is timestamped, so there is less to argue about.'),
+          !navigator.onLine ? h('div', { class: 'alert warn' }, 'You appear to be offline. Signing in needs a connection.') : null,
+          h('ul', { class: 'checks' },
+            ['Both parents see the same schedule, the same numbers and the same messages', 'Nothing in the schedule changes without both approvals', 'Attorneys, mediators and step-parents can be given view-only access']
+              .map(t => h('li', null, icon('check', 18), h('span', null, t)))),
+          h('div', { class: 'row' }, h('button', { class: 'primary big-btn', onclick: () => goAuth('register') }, 'Create an account'), h('button', { class: 'big-btn', onclick: () => goAuth('login') }, 'Sign in'))),
+        cardBox),
+      h('section', { class: 'l-section', 'aria-labelledby': 'f-h' }, h('div', { class: 'l-wrap' },
+        h('h2', { id: 'f-h' }, 'Everything co-parents need to keep straight'),
+        h('p', { class: 'muted l-sub' }, 'Built around what parenting plans and custody orders actually cover.'),
+        h('div', { class: 'features' }, FEATURES.map(([ic, t, d]) => h('div', { class: 'feature' }, h('div', { class: 'f-ic' }, icon(ic, 20)), h('h3', null, t), h('p', null, d)))))),
+      h('section', { class: 'l-section', 'aria-labelledby': 'how-h' }, h('div', { class: 'l-wrap' },
+        h('h2', { id: 'how-h' }, 'How it works'),
+        h('ol', { class: 'steps' }, STEPS.map(([t, d]) => h('li', null, h('h3', null, t), h('p', null, d)))))),
+      h('section', { class: 'l-section', 'aria-labelledby': 'ios-h' }, h('div', { class: 'l-wrap' },
+        h('div', { class: 'phone-cta' }, phoneMock,
+          h('div', null, h('h2', { id: 'ios-h' }, 'CoParent Hub on iPhone'),
+            h('p', { class: 'muted' }, 'Use the same account in the iPhone app: get notified about requests, messages and upcoming exchanges, check in at hand-offs, and open your records on the go.'),
+            iphone)))),
+      h('section', { class: 'l-section', 'aria-labelledby': 'rec-h' }, h('div', { class: 'l-wrap narrow' },
+        h('h2', { id: 'rec-h' }, 'About the records'),
+        h('p', { class: 'muted' }, 'Messages, notes and the activity log are append-only and timestamped by the server. Each log entry is chained to the one before it with a SHA-256 hash, so a later change is detectable (tamper-evident), and you can keep the current fingerprint yourself. Reports are printable and can be saved as PDF.'),
+        h('p', { class: 'muted' }, 'CoParent Hub is a record-keeping tool, not legal advice. Whether a record is admitted as evidence is decided by the court; ask your attorney what your court expects.')))),
+    h('footer', { class: 'l-wrap l-foot' }, h('span', null, '© ', new Date().getFullYear(), ' CoParent Hub'), h('button', { class: 'link', onclick: () => goAuth('login') }, 'Sign in'))));
 }
 
 function renderSetup(app) {
@@ -238,7 +382,8 @@ function renderSetup(app) {
     field('Invite code', inp('code', { required: true, style: 'text-transform:uppercase' })), h('button', { class: 'primary', type: 'submit' }, 'Join'));
   app.replaceChildren(h('div', { style: 'max-width:760px;margin:6vh auto;padding:0 16px' }, h('h1', null, `Welcome, ${S.me.user.name}`),
     h('p', { class: 'muted' }, 'Set up your family space, or join the one your co-parent created.'), h('div', { class: 'grid' }, create, join),
-    h('p', null, h('button', { class: 'link', onclick: async () => { await post('/api/logout'); S.me = null; render(); } }, 'Sign out'))));
+    h('p', { class: 'row' }, h('button', { class: 'link', onclick: signOut }, 'Sign out'), h('span', { class: 'muted' }, '·'),
+      h('button', { class: 'link', style: 'color:var(--bad)', onclick: () => deleteAccountModal() }, 'Delete my account'))));
 }
 
 // ---------- dashboard ----------
@@ -281,9 +426,85 @@ VIEWS.dashboard = async (main) => {
   // re-render nav with counts
   const nav = $('.nav'); if (nav) for (const a of nav.querySelectorAll('a')) {
     const entry = NAV.find(([k]) => a.getAttribute('href') === `#/${k}`);
-    const n = entry?.[2] ? entry[2].split('+').reduce((s, x) => s + (pendingCounts[x] || 0), 0) : 0;
+    if (!entry?.[2]) continue; // only sections with pending counts (the notifications badge is managed by setUnread)
+    const n = entry[2].split('+').reduce((s, x) => s + (pendingCounts[x] || 0), 0);
     a.querySelector('.count')?.remove(); if (n) a.append(h('span', { class: 'count' }, n));
   }
+};
+
+// ---------- notifications ----------
+const NOTIF_ROUTES = new Set(['dashboard', 'calendar', 'schedule', 'activities', 'expenses', 'messages', 'calls', 'exchanges', 'records', 'settings']);
+/** Shared link format (see API.md): 'messages/<id>' or a section name. Unknown -> dashboard. */
+function notifHref(link) {
+  const l = String(link || '');
+  const m = /^messages\/(\d+)$/.exec(l);
+  if (m) return `#/messages/${m[1]}`;
+  return NOTIF_ROUTES.has(l) ? `#/${l}` : '#/dashboard';
+}
+const NOTIF_ICON = { calendar: 'calendar', schedule: 'approve', activities: 'flag', expenses: 'dollar', messages: 'message', calls: 'phone', exchanges: 'pin', records: 'shield', settings: 'users', dashboard: 'home' };
+function ago(iso) {
+  const t = Date.parse(iso), s = (Date.now() - t) / 1000;
+  if (!Number.isFinite(t)) return '';
+  if (s < 60) return 'Just now';
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  const d = Math.floor(s / 86400);
+  if (d < 7) return d === 1 ? 'Yesterday' : `${d} days ago`;
+  return fmt(t, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+VIEWS.notifications = async (main) => {
+  const PAGE = 50;
+  const items = await get(`/api/notifications?limit=${PAGE}`);
+  let more = items.length === PAGE;
+  const listBox = h('div', { class: 'notif-list' });
+  const footer = h('div');
+  const markAll = h('button', { onclick: async () => {
+    try {
+      const r = await attempt(() => post('/api/notifications/read', { all: true }), 'All caught up');
+      const now = new Date().toISOString();
+      for (const n of items) n.read_at ||= now;
+      setUnread(r.unread); draw();
+    } catch { /* toast shown */ }
+  } }, icon('check', 16), 'Mark all read');
+  const open = async (e, n) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; // let the browser open a new tab
+    e.preventDefault();
+    if (!n.read_at) {
+      n.read_at = new Date().toISOString();
+      try { const r = await post('/api/notifications/read', { ids: [n.id] }); setUnread(r.unread); } catch { /* still navigate */ }
+    }
+    location.hash = notifHref(n.link);
+  };
+  function draw() {
+    const unread = items.filter(n => !n.read_at).length;
+    markAll.disabled = !unread && !(S.me.unread_notifications > 0);
+    if (!items.length) {
+      mount(clear(listBox), h('div', { class: 'empty-state' }, h('div', { class: 'f-ic' }, icon('bell', 22)), h('p', null, h('b', null, 'No notifications yet')),
+        h('p', { class: 'muted small' }, 'When your co-parent requests a change, sends a message or checks in at an exchange, it shows up here. Exchange reminders arrive a day and an hour before each hand-off.')));
+      return mount(clear(footer));
+    }
+    mount(clear(listBox), items.map(n => {
+      const sec = String(n.link || '').split('/')[0];
+      const when = Date.parse(n.created_at);
+      return h('a', { href: notifHref(n.link), class: `notif${n.read_at ? '' : ' unread'}`, onclick: (e) => open(e, n), 'data-id': n.id },
+        h('span', { class: 'n-ic' }, icon(NOTIF_ICON[sec] || 'bell', 18)),
+        h('span', { class: 'n-main' },
+          h('span', { class: 'n-title' }, n.title, n.read_at ? null : h('span', { class: 'sr-only' }, ' (unread)')),
+          n.body ? h('span', { class: 'n-body' }, n.body) : null,
+          h('time', { class: 'n-time', datetime: n.created_at, title: Number.isFinite(when) ? fmtDT(when) : '' }, ago(n.created_at), Number.isFinite(when) ? ` · ${fmtDT(when)}` : '')),
+        h('span', { class: n.read_at ? 'n-dot read' : 'n-dot', 'aria-hidden': 'true' }));
+    }));
+    mount(clear(footer), more ? h('div', { style: 'text-align:center;margin-top:12px' }, h('button', { onclick: async (e) => {
+      const btn = e.currentTarget; btn.disabled = true;
+      try {
+        const older = await get(`/api/notifications?limit=${PAGE}&before=${items[items.length - 1].id}`);
+        items.push(...older); more = older.length === PAGE; draw();
+      } catch (x) { toast(x.message); btn.disabled = false; }
+    } }, 'Show older')) : null);
+  }
+  mount(main, head('Notifications', 'Requests, decisions, messages and reminders from your family space.', markAll), h('div', { class: 'card notif-card' }, listBox, footer));
+  draw();
 };
 
 // ---------- calendar ----------
@@ -744,18 +965,32 @@ function paymentForm(approved) {
 // ---------- messages ----------
 let openThread = null;
 VIEWS.messages = async (main) => {
+  // Deep link: #/messages/<threadId> (from notifications and push) opens that conversation.
+  const linked = routeParts()[1];
+  if (/^\d+$/.test(linked || '')) openThread = +linked;
   const threads = await get('/api/threads');
   const listBox = h('div', { class: 'card' });
-  const viewBox = h('div', { class: 'card' });
+  const viewBox = h('div', { class: 'card', id: 'thread-view' });
   const drawList = () => mount(clear(listBox), h('div', { class: 'item-head' }, h('h2', null, 'Conversations'), isParent() ? h('button', { class: 'primary', onclick: newThread }, 'New') : null),
-    threads.length ? threads.map(t => h('a', { href: '#/messages', class: `thread-link${openThread === t.id ? ' on' : ''}`, onclick: (e) => { e.preventDefault(); openThread = t.id; drawList(); drawThread(); } },
+    threads.length ? threads.map(t => h('a', { href: `#/messages/${t.id}`, class: `thread-link${openThread === t.id ? ' on' : ''}`, 'aria-current': openThread === t.id ? 'true' : null, onclick: (e) => {
+      e.preventDefault(); openThread = t.id; history.replaceState(null, '', `#/messages/${t.id}`); drawList(); drawThread().then(() => scrollToThread());
+    } },
       h('div', { class: 'item-head' }, h('b', null, t.subject), t.unread ? h('span', { class: 'badge bad' }, `${t.unread} new`) : null), h('div', { class: 'small muted' }, `${t.topic} · ${t.count} message${t.count === 1 ? '' : 's'} · ${fmtIso(t.last_at)}`)))
       : h('p', { class: 'empty' }, 'No conversations yet.'));
+  // On narrow screens the conversation sits below the list.
+  const scrollToThread = () => { if (matchMedia('(max-width: 820px)').matches) viewBox.scrollIntoView({ block: 'start' }); };
   async function drawThread() {
     if (!openThread) return mount(clear(viewBox), h('p', { class: 'muted' }, 'Pick a conversation, or start a new one. One topic per conversation keeps things clear.'));
-    const { thread, messages } = await get(`/api/threads/${openThread}`);
-    const t = threads.find(x => x.id === openThread); if (t) t.unread = 0;
-    const ta = h('textarea', { placeholder: 'Brief, informative, friendly, firm.' });
+    let data;
+    try { data = await get(`/api/threads/${openThread}`); } catch (e) {
+      if (e.message === 'Signed out') throw e;
+      openThread = null; drawList();
+      return mount(clear(viewBox), h('div', { class: 'alert warn' }, 'That conversation could not be found. It may belong to a different family.'));
+    }
+    const { thread, messages } = data;
+    const t = threads.find(x => x.id === openThread); if (t && t.unread) { t.unread = 0; drawList(); }
+    refreshUnread(); // opening a thread marks its message notifications read
+    const ta = h('textarea', { placeholder: 'Brief, informative, friendly, firm.', 'aria-label': 'Reply' });
     mount(clear(viewBox), h('h2', null, thread.subject),
       h('div', null, messages.map(m => h('div', { class: `msg${m.author === S.me.user.id ? ' mine' : ''}` }, m.body,
         h('div', { class: 'meta' }, `${m.author_name} · ${fmtIso(m.created_at)}`, m.author === S.me.user.id ? (m.reads.length ? ` · Read ${fmtIso(m.reads[0].at)}` : ' · Not yet read') : '')))),
@@ -767,7 +1002,7 @@ VIEWS.messages = async (main) => {
     modal('New conversation', (close) => {
       const form = h('form', { onsubmit: async (e) => { e.preventDefault(); const v = formValues(form);
         if (!(await toneGate(v.body))) return;
-        const { id } = await attempt(() => post('/api/threads', v)); close(); openThread = id; clear(main); VIEWS.messages(main); } },
+        const { id } = await attempt(() => post('/api/threads', v)); close(); openThread = id; history.replaceState(null, '', `#/messages/${id}`); clear(main); VIEWS.messages(main); } },
         field('Subject', inp('subject', { required: true, placeholder: 'e.g. Spring break dates' })),
         field('Topic', sel('topic', [['general', 'General'], ['schedule', 'Schedule'], ['expenses', 'Expenses'], ['school', 'School'], ['medical', 'Medical'], ['activities', 'Activities']], 'general')),
         field('Message', h('textarea', { name: 'body', required: true })), h('button', { class: 'primary', type: 'submit' }, 'Send'));
@@ -775,7 +1010,9 @@ VIEWS.messages = async (main) => {
     });
   }
   mount(main, head('Messages', 'A neutral, permanent record. Each message gets a tone check before it is sent.'), h('div', { class: 'threads' }, listBox, viewBox));
-  drawList(); drawThread();
+  drawList();
+  await drawThread();
+  if (linked) scrollToThread();
 };
 
 async function toneGate(text) {
@@ -957,7 +1194,7 @@ VIEWS.settings = async (main) => {
   mount(main, head('Settings'),
     h('div', { class: 'grid' },
       h('div', { class: 'card' }, h('h2', null, 'Family'), famForm),
-      h('div', { class: 'card' }, h('h2', null, 'People'), h('div', { class: 'list' }, S.me.members.map(m => h('div', { class: 'item row' }, parentDot(m.id), h('b', null, m.name), h('span', { class: 'muted small' }, `${m.role === 'viewer' ? 'View only' : 'Parent'} · ${m.email}`)))),
+      h('div', { class: 'card' }, h('h2', null, 'People'), h('div', { class: 'list' }, S.me.members.map(m => h('div', { class: 'item row' }, parentDot(m.id), h('b', null, m.name), h('span', { class: 'muted small' }, `${m.role === 'viewer' ? 'View only' : 'Parent'} · ${isDeletedMember(m) ? 'account deleted' : m.email}`)))),
         isParent() ? h('div', null,
           f.invite_code ? h('div', { class: 'alert' }, 'Co-parent invite code: ', h('b', null, f.invite_code), h('div', { class: 'small muted' }, 'They create an account, then enter this code. It works once.')) : null,
           h('div', { class: 'alert' }, 'View-only code (attorney, mediator, GAL, step-parent): ', h('b', null, f.viewer_code),
@@ -975,7 +1212,89 @@ VIEWS.settings = async (main) => {
           h('div', { class: 'fields' }, INFO.map(k => field(k, inp(`i_${k}`, { value: c.info[k] || '' })))),
           isParent() ? h('button', { type: 'submit' }, 'Save') : null);
         return fm;
-      })));
+      })),
+    accountCard());
 };
 
+// ---------- account (change password, delete account) ----------
+const isDeletedMember = (m) => /^deleted-\d+@invalid$/.test(m?.email || '');
+const othersInFamily = () => (S.me?.members || []).filter(m => m.id !== S.me.user.id && !isDeletedMember(m));
+
+function accountCard() {
+  const err = h('p', { class: 'form-error', role: 'alert', hidden: true });
+  const pw = h('form', { 'aria-labelledby': 'pw-h', onsubmit: async (e) => {
+    e.preventDefault();
+    const v = formValues(pw);
+    const fail = (m) => { err.textContent = m; err.hidden = false; };
+    err.hidden = true;
+    if (v.next.length < 10) return fail('The new password must be at least 10 characters.');
+    if (v.next !== v.confirm) return fail('The new passwords don’t match.');
+    const btn = pw.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      await post('/api/account/password', { current: v.current, next: v.next });
+      pw.reset(); toast('Password changed. Your other devices were signed out.');
+    } catch (x) { fail(x.message); } finally { btn.disabled = false; }
+  } },
+    h('h3', { id: 'pw-h', style: 'margin-top:0' }, 'Change password'), err,
+    field('Current password', inp('current', { type: 'password', required: true, autocomplete: 'current-password' })),
+    h('div', { class: 'fields' },
+      field('New password', inp('next', { type: 'password', required: true, minlength: 10, autocomplete: 'new-password' }), 'At least 10 characters.'),
+      field('Confirm new password', inp('confirm', { type: 'password', required: true, minlength: 10, autocomplete: 'new-password' }))),
+    h('p', { class: 'small muted', style: 'margin-top:-4px' }, 'Changing it signs you out on every other device, including the iPhone app.'),
+    h('button', { class: 'primary', type: 'submit' }, 'Change password'));
+  return h('div', { class: 'card', id: 'account', style: 'margin-top:14px' },
+    h('h2', null, 'Your account'),
+    h('p', { class: 'small muted' }, `Signed in as ${S.me.user.email}.`),
+    h('div', { class: 'account-grid' }, pw,
+      h('div', { class: 'danger-zone' },
+        h('h3', { style: 'margin-top:0' }, 'Delete my account'),
+        deletionExplainer(),
+        h('button', { class: 'danger', onclick: () => deleteAccountModal() }, 'Delete my account…'))));
+}
+
+function deletionExplainer() {
+  const others = othersInFamily();
+  const mine = !S.me.family ? 'You are not in a family yet, so your account is simply deleted.'
+    : others.length ? `${others.map(m => m.name).join(' and ')} ${others.length > 1 ? 'remain' : 'remains'} in your family, so your account will be anonymized rather than erased.${S.me.role === 'viewer' ? ' Your view-only access ends; the family\u2019s records are not changed.' : ''}`
+      : 'You are the only member of your family, so everything will be permanently deleted.';
+  return h('div', { class: 'small' },
+    h('ul', { class: 'tight' },
+      h('li', null, h('b', null, 'If you are the only member: '), 'your account and the whole family space (schedule, messages, notes, expenses, files and the activity log) are permanently deleted. This cannot be undone.'),
+      h('li', null, h('b', null, 'If a co-parent or view-only member remains: '), 'your login and personal details (name, email, password, calendar link, devices) are removed. Messages, notes and approvals you took part in stay in the shared record as “Deleted user”, because they are the other parent’s records too.')),
+    h('p', { class: 'alert', style: 'margin:8px 0' }, h('b', null, 'For you: '), mine));
+}
+
+function deleteAccountModal() {
+  modal('Delete my account', (close) => {
+    const err = h('p', { class: 'form-error', role: 'alert', hidden: true });
+    const ok = h('input', { type: 'checkbox', name: 'understand', required: true });
+    const btn = h('button', { class: 'danger-solid', type: 'submit' }, 'Permanently delete my account');
+    const form = h('form', { onsubmit: async (e) => {
+      e.preventDefault();
+      err.hidden = true;
+      if (!ok.checked) { err.textContent = 'Tick the box to confirm.'; err.hidden = false; return; }
+      btn.disabled = true;
+      try {
+        await post('/api/account/delete', { password: form.elements.password.value });
+        close();
+        S.me = null; openThread = null; pendingCounts = {};
+        history.replaceState(null, '', location.pathname);
+        await render();
+        toast('Your account was deleted.');
+      } catch (x) { err.textContent = x.message; err.hidden = false; btn.disabled = false; }
+    } },
+      deletionExplainer(), err,
+      field('Your password', inp('password', { type: 'password', required: true, autocomplete: 'current-password' })),
+      h('label', { class: 'check field' }, ok, 'I understand this cannot be undone.'),
+      h('div', { class: 'actions' }, btn, h('button', { type: 'button', onclick: close }, 'Cancel')));
+    return form;
+  });
+}
+
 render();
+
+// Installable web app: the service worker only keeps the app shell available (see sw.js). Failure is silent.
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  const registerSw = () => { try { navigator.serviceWorker.register('/sw.js').catch(() => {}); } catch { /* unsupported */ } };
+  if (document.readyState === 'complete') registerSw(); else window.addEventListener('load', registerSw, { once: true });
+}

@@ -1,16 +1,26 @@
 # CoParent Hub
 
-A co-parenting app for two households: custody schedule with approvals, calendar sync, kids' activities, shared expenses and reimbursement, a tone-checked message record, court-ordered call tracking, exchange check-ins, and a printable records report.
+A co-parenting app for two households: custody schedule with approvals, calendar sync, kids' activities, shared expenses and reimbursement, a tone-checked message record, court-ordered call tracking, exchange check-ins, and a printable records report. One server serves a **web portal** and an **iPhone app**.
 
-Runs on Node.js 22.13+ with **no npm dependencies** (uses the built-in `node:sqlite`).
+The server runs on Node.js 22.13+ with **no npm dependencies** (it uses the built-in `node:sqlite`).
 
 ```bash
 cd custody-app
-npm start            # http://localhost:3000
-npm test             # engine + full two-parent API workflow
+npm start            # http://localhost:3000 (web portal + API)
+npm test             # engine, two-parent workflow, and platform tests (auth, push, reminders, account deletion)
+npm run backup       # consistent copy of the database to data/backups/
 ```
 
-Environment variables: `PORT` (default 3000), `DB_PATH` (default `data/coparent.db`), `NODE_ENV=production` (adds the Secure cookie flag; required behind HTTPS).
+Main settings: `PORT` (default 3000), `DB_PATH` (default `data/coparent.db`), `NODE_ENV=production` (Secure cookie flag and exchange reminders; requires HTTPS). Every variable is listed in [DEPLOY.md](DEPLOY.md#environment-variables).
+
+## Web portal, iPhone app, API
+
+| | Where | Notes |
+|---|---|---|
+| **Web portal** | `public/` (vanilla JS, no build step) | Served by the server at `/`. Signs in with a session cookie. |
+| **iPhone app** | `mobile/` (Expo / React Native) | Signs in with a bearer token, gets push notifications, opens the report in Safari through a short-lived link. See `mobile/README.md`. |
+| **API reference** | [API.md](API.md) | Every endpoint with auth, request body, response shape and errors, the bearer-token flow, and the notification link format both clients share. |
+| **Deployment** | [DEPLOY.md](DEPLOY.md) | Docker image, recipes for Fly.io, Render and a VPS with Caddy, every environment variable, backups, and how to point the iPhone app at your server. HTTPS is mandatory for the phone app and for calendar subscriptions. |
 
 ## What it does
 
@@ -29,6 +39,8 @@ Environment variables: `PORT` (default 3000), `DB_PATH` (default `data/coparent.
 | **Records** | Every action goes into a per-family SHA-256 hash chain. Messages and notes are blocked from UPDATE/DELETE at the database level, and their text hashes are cross-checked. The **report** (Records → Open report → Print to PDF) covers time share, the approval history, exchanges, call compliance, expenses, payments, messages with read receipts, notes, and the integrity result. |
 | **Roles** | Two parents plus any number of **view-only** members (attorney, mediator, GAL, step-parent) via a separate, rotatable code. |
 | **Child info bank** | School, doctor, allergies, medications, sizes and emergency contact per child, shared and change-logged. |
+| **Notifications** | Requests, decisions, payments, calls, messages, check-ins and members joining or leaving land in an in-app inbox for the *other* parent (never the person who acted, never view-only members), with an unread count and a push to their iPhone. Both parents get a reminder 24 hours and 1 hour before every custody exchange. |
+| **Accounts** | Change password (signs out every other device). Delete account from inside the app, as Apple requires: a family with nobody else left is erased completely; if a co-parent or viewer remains, the account is anonymized so the shared record stays intact. |
 
 ## Limitations (read before relying on this)
 
@@ -37,12 +49,13 @@ Environment variables: `PORT` (default 3000), `DB_PATH` (default `data/coparent.
 3. **"Court-usable" is not the same as "admissible".** The hash chain shows that records weren't changed after the fact, *relative to a fingerprint someone kept*. Whoever controls the server could rebuild the whole chain, so parents should periodically email the fingerprint (shown in Records) to themselves or their attorneys. A court decides admissibility under local evidence rules. Commercial apps courts already order (OurFamilyWizard, TalkingParents, AppClose) have a track record and can supply business-records affidavits; a self-hosted app has neither. Ask your attorney whether your court will accept it.
 4. **One schedule per family.** If siblings follow different schedules, that is not modeled yet.
 5. **The tone check is keyword-based.** It catches obvious hostility and misses subtle hostility. An AI rewrite suggestion would be better (see roadmap).
-6. **No email or push notifications yet.** Parents see pending items when they open the app.
-7. **Not yet hardened for public hosting.** Missing pieces: password reset, two-factor login, email verification, and backups. The basics are in place: scrypt password hashing, HttpOnly SameSite cookies, login rate limiting, per-family authorization on every query, a CSP, and an SSRF guard on calendar imports.
+6. **Notifications are in-app and push only.** The inbox works everywhere. Push to the iPhone needs a deployed HTTPS server, an EAS project (`eas init`) and an Apple Developer account with an APNs key, and a physical device. There are no email or SMS notifications, so a parent without the iPhone app only sees notifications when they open the web portal.
+7. **Not fully hardened for public hosting.** Still missing: **password reset by email** (today a forgotten password can only be fixed by editing the database), two-factor login, and email verification. Backups are a command (`npm run backup`); scheduling them and copying them off the server is up to you (see DEPLOY.md). In place: scrypt password hashing, HttpOnly SameSite cookies or bearer tokens, rate limits on login, sign-up and password checks, password change that signs out other devices, in-app account deletion, per-family authorization on every query, a CSP, and an SSRF guard on calendar imports.
+8. **One server instance.** SQLite, reminders and rate limits live in one process, so run a single instance with a persistent volume (see DEPLOY.md).
 
 ## Suggested next features
 
-- **Notifications** (email/SMS/push) for approvals, unread messages and upcoming exchanges, with a 24-hour reminder before each exchange.
+- **Email and SMS notifications** alongside the in-app inbox and iPhone push, plus **password reset by email**.
 - **Google and Microsoft OAuth two-way sync** (see limitation 1).
 - **AI-assisted message rewrite** ("make this more neutral") on top of the rule-based check.
 - **Per-child schedules**, and **step-parent or new-partner households** as separate homes.
@@ -52,18 +65,28 @@ Environment variables: `PORT` (default 3000), `DB_PATH` (default `data/coparent.
 - **Trade-day bank**: tracks swaps owed in either direction, so make-up time doesn't get lost.
 - **Right of first refusal** rule: if the custodial parent will be away more than N hours, the other parent is offered the time first.
 - **Holiday calendar import** from the school district's ICS so spring break dates fill in automatically each year.
-- **Mobile app wrapper** (PWA install) for faster exchange check-ins.
+- **Android build** of the mobile app (the Expo project already targets Android; it needs testing and a Play Store listing).
 
 ## Layout
 
 ```
-server/time.js      time-zone safe date math, holiday date rules
-server/schedule.js  custody engine: templates, layering, time share, transitions
-server/ics.js       iCalendar reader (TZID, RRULE, EXDATE) and writer
-server/tone.js      message tone check
-server/db.js        schema, append-only triggers, hash-chained audit log
-server/api.js       all endpoints and approval workflows
-server/report.js    printable records report
-public/             single-page app (vanilla JS, no build step)
-test/               engine unit tests + end-to-end two-parent API test
+server/index.js       HTTP server: cookie + bearer auth, CORS, /healthz, /report, /ics, options from env
+server/time.js        time-zone safe date math, holiday date rules
+server/schedule.js    custody engine: templates, layering, time share, transitions
+server/ics.js         iCalendar reader (TZID, RRULE, EXDATE) and writer
+server/tone.js        message tone check
+server/db.js          schema, append-only triggers, hash-chained audit log
+server/api.js         endpoints and approval workflows (calls notify() at each trigger)
+server/notify.js      notification inbox, push fan-out, notification and push-token endpoints
+server/push.js        Expo push sender (batches of 100, drops unregistered devices)
+server/reminders.js   exchange reminder sweep (24 h and 1 h before each hand-off)
+server/account.js     change password, delete account (purge or anonymize)
+server/privileges.js  in Docker, hands the data volume to the unprivileged user and drops root
+server/report.js      printable records report
+scripts/backup.js     npm run backup (VACUUM INTO)
+public/               web portal: single-page app (vanilla JS, no build step)
+mobile/               iPhone app (Expo / React Native)
+test/                 engine unit tests, two-parent API workflow, platform tests
+API.md · DEPLOY.md    API reference · deployment guide
+Dockerfile            production image (node:22-slim, data volume at /app/data)
 ```

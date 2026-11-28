@@ -1,0 +1,17 @@
+# Only server/, public/, scripts/ and package.json go into the image.
+mobile/
+node_modules/
+**/node_modules/
+data/
+test/
+*.db
+*.db-*
+.git
+.gitignore
+.dockerignore
+Dockerfile
+*.md
+.env
+.env.*
+npm-debug.log*
+.DS_Store
