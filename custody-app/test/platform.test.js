@@ -530,6 +530,9 @@ test('delete account with a co-parent: anonymized, shared records kept', async (
   assert.equal((await f.mom.get('/api/notifications')).filter(n => n.kind === 'member_left').length, 2);
   assert.equal((await f.mom.get('/api/audit/verify')).ok, true);
   assert.equal((await f.mom.get('/api/me')).members.length, 2);
+  // The viewer's members row is gone, but their audit entry still resolves to the users row.
+  const viewerLeft = (await f.mom.get('/api/audit')).find(a => a.action === 'delete_account' && a.entity_id === String(f.viewerId));
+  assert.equal(viewerLeft.user_name, 'Deleted user');
 });
 
 test('delete account as the last member purges the whole family', async (t) => {
@@ -654,4 +657,162 @@ test('sign-up is rate limited per IP', async (t) => {
   const direct = await start(t); // X-Forwarded-For is ignored unless TRUST_PROXY is set
   for (let i = 0; i < 10; i++) assert.equal((await reg(direct.base, i, `192.0.2.${i}`)).status, 200);
   assert.equal((await reg(direct.base, 10, '192.0.2.99')).status, 429);
+});
+
+test('a deleted co-parent stops counting: unconfirmed requests, fresh invite code, a new co-parent confirms', async (t) => {
+  const { base } = await start(t);
+  const f = await family(base);
+  const { mom, dad, viewer, momId, dadId } = f;
+  const rules0 = await dad.get('/api/rules');
+  await dad.post(`/api/rules/${rules0[0].id}/decide`, { decision: 'approve' });
+  assert.equal(f.me.family.invite_code, null, 'consumed when Dad joined');
+  // Before the deletion: two pending requests from Mom that need Dad, an approved expense Dad owes on.
+  const dd = (n) => String(n).padStart(2, '0');
+  const swap = (d) => ({ type: 'override', name: `Swap ${d}`, config: { periods: [{ start: `2026-12-${dd(d)}T18:00`, end: `2026-12-${dd(d + 1)}T18:00`, parent: momId }] } });
+  const { id: p1 } = await mom.post('/api/rules', swap(11));
+  const { id: p2 } = await mom.post('/api/rules', swap(18));
+  const { id: exp } = await mom.post('/api/expenses', { description: 'Dentist', amount: 100 });
+  await dad.post(`/api/expenses/${exp}/decide`, { decision: 'approve' });
+  // Viewers never record reads, so their unread count stays 0 (parents' counts still work).
+  const { id: th } = await mom.post('/api/threads', { subject: 'School', body: 'Report cards are out.' });
+  assert.equal((await viewer.get('/api/threads')).find(x => x.id === th).unread, 0);
+  await viewer.get(`/api/threads/${th}`);
+  assert.equal((await viewer.get('/api/threads')).find(x => x.id === th).unread, 0);
+  assert.equal((await dad.get('/api/threads')).find(x => x.id === th).unread, 1);
+  assert.equal((await viewer.get('/api/dashboard')).pending.messages, 0);
+
+  await dad.post('/api/account/delete', { password: PW.dad });
+
+  let me = await mom.get('/api/me');
+  const dadRow = me.members.find(m => m.id === dadId);
+  assert.equal(dadRow.name, 'Deleted user');
+  assert.equal(dadRow.deleted, true);
+  assert.equal(me.members.find(m => m.id === momId).deleted, false);
+  assert.ok(me.family.invite_code, 'a fresh invite code for a new co-parent');
+  assert.equal((await viewer.get('/api/me')).family.invite_code, undefined, 'viewers never see it');
+
+  // Mom's old pending requests can't be approved by anyone yet; she can withdraw one.
+  await mom.post(`/api/rules/${p1}/withdraw`);
+  // New requests take effect as "not yet confirmed" while there is no live co-parent.
+  const { id: u1 } = await mom.post('/api/rules', swap(25));
+  let rules = await mom.get('/api/rules');
+  assert.equal(rules.find(r => r.id === u1).status, 'unconfirmed');
+  assert.equal(rules.find(r => r.id === p2).status, 'pending');
+  assert.equal(rules.find(r => r.id === rules0[0].id).decided_by_name, 'Deleted user', 'history still resolves');
+  const { id: ev } = await mom.post('/api/events', { title: 'Piano', start: '2026-12-02T16:00', end: '2026-12-02T17:00' });
+  assert.equal((await mom.get('/api/events?start=2026-12-01&end=2026-12-05')).events.find(e => e.id === ev).status, 'accepted');
+  // The deleted parent can't be given new custody time.
+  assert.equal((await mom.req('POST', '/api/rules', { type: 'override', config: { periods: [{ start: '2026-12-30T18:00', end: '2026-12-31T18:00', parent: dadId }] } })).status, 400);
+  // Ending an item applies at once, and payments have nobody to go to.
+  assert.equal((await mom.req('POST', '/api/payments', { amount: 5 })).status, 400);
+  // The deleted parent's records still count in the balance.
+  assert.equal((await mom.get('/api/balance')).net_cents, 5000);
+
+  // A new co-parent joins with the fresh code (the deleted parent's place is free again).
+  const pat = client(base);
+  await pat.register('pat@example.com', 'Pat', 'correct-horse-9');
+  assert.equal((await pat.post('/api/family/join', { code: me.family.invite_code })).role, 'parent');
+  const patMe = await pat.get('/api/me');
+  assert.deepEqual(patMe.members.filter(m => m.role === 'parent').map(m => [m.name, m.deleted]), [['Mom', false], ['Deleted user', true], ['Pat', false]]);
+  me = await mom.get('/api/me');
+  assert.equal(me.family.invite_code, null, 'both parent places are taken again');
+  const third = client(base);
+  await third.register('third@example.com', 'Third', 'correct-horse-10');
+  assert.equal((await third.req('POST', '/api/family/join', { code: patMe.family.invite_code || 'NOPE' })).status, 400);
+  assert.ok((await mom.get('/api/notifications')).some(n => n.kind === 'member_joined' && n.title === 'Pat joined the family'));
+
+  // Pat sees both waiting items and decides them.
+  const dash = await pat.get('/api/dashboard');
+  assert.ok(dash.pending.rules >= 2);
+  assert.equal((await pat.post(`/api/rules/${u1}/decide`, { decision: 'approve' })).status, 'active');
+  assert.equal((await pat.post(`/api/rules/${p2}/decide`, { decision: 'reject', note: 'No' })).status, 'rejected');
+  // Mom's next request needs Pat again.
+  const { id: next } = await mom.post('/api/rules', swap(4));
+  assert.equal((await mom.get('/api/rules')).find(r => r.id === next).status, 'pending');
+  assert.ok((await pat.get('/api/notifications')).some(n => n.kind === 'rule_requested'));
+  assert.equal((await mom.get('/api/audit/verify')).ok, true);
+});
+
+test('schedule preview: validation errors are 400, not 500', async (t) => {
+  const { base } = await start(t);
+  const f = await family(base, { withViewer: false });
+  const bad1 = await f.mom.req('POST', '/api/schedule/preview', { type: 'pattern', template: { template: 'bogus', anchorDate: '2026-12-04', parentA: f.momId, parentB: f.dadId } });
+  assert.equal(bad1.status, 400);
+  assert.equal(bad1.data.error, 'Unknown template: bogus');
+  const bad2 = await f.mom.req('POST', '/api/schedule/preview', { type: 'pattern', config: { cycleDays: 14, segments: [] } });
+  assert.deepEqual([bad2.status, bad2.data.error], [400, 'Pattern needs an anchor date']);
+  const bad3 = await f.mom.req('POST', '/api/schedule/preview', { type: 'pattern', template: { template: 'custom', anchorDate: '2026-12-04', options: { days: [] } } });
+  assert.deepEqual([bad3.status, bad3.data.error], [400, 'Custom cycle needs 1-56 days']);
+  assert.equal((await f.mom.req('POST', '/api/schedule/preview', { type: 'nonsense' })).status, 400);
+  assert.equal((await f.mom.req('POST', '/api/schedule/preview', { type: 'override', config: { periods: [{ start: '2026-12-01T10:00', end: '2026-12-01T09:00', parent: f.momId }] } })).status, 400);
+  const ok = await f.mom.post('/api/schedule/preview', { type: 'pattern', template: { template: 'alternating_weekends', anchorDate: '2026-12-04', parentA: f.momId, parentB: f.dadId }, start: '2026-12-01', end: '2026-12-29' });
+  assert.equal(ok.share.byParent.find(p => p.parent === f.dadId).overnights, 4);
+});
+
+test('replacing a regular schedule: impact excludes the replaced pattern, approval retires it', async (t) => {
+  const { base } = await start(t);
+  const f = await family(base, { withViewer: false });
+  const { mom, dad, momId, dadId } = f;
+  const rules0 = await dad.get('/api/rules');
+  await dad.post(`/api/rules/${rules0[0].id}/decide`, { decision: 'approve' });
+  const range = 'start=2026-12-07&end=2027-01-04';
+  const { id: a } = await mom.post('/api/rules', { type: 'pattern', name: 'Alternating weekends', template: { template: 'alternating_weekends', anchorDate: '2026-12-04', parentA: momId, parentB: dadId } });
+  await dad.post(`/api/rules/${a}/decide`, { decision: 'approve' });
+  const shareA = (await mom.get(`/api/timeline?${range}`)).share.byParent;
+
+  // Week on / week off replacing it.
+  const wk = { template: 'week_on_week_off', anchorDate: '2026-12-07', parentA: momId, parentB: dadId, exchangeTime: '18:00' };
+  const { id: b } = await mom.post('/api/rules', { type: 'pattern', name: 'Week on / week off', template: wk, supersedes: a });
+  let rules = await dad.get('/api/rules');
+  assert.equal(rules.find(r => r.id === b).supersedes, a);
+  assert.equal(rules.find(r => r.id === b).supersedes_name, 'Alternating weekends');
+  const imp = await dad.get(`/api/rules/${b}/impact?${range}`);
+  assert.deepEqual(imp.before.byParent, shareA);
+  await dad.post(`/api/rules/${b}/decide`, { decision: 'approve' });
+  rules = await dad.get('/api/rules');
+  assert.equal(rules.find(r => r.id === a).status, 'retired');
+  assert.equal(rules.find(r => r.id === b).status, 'active');
+  const shareB = (await mom.get(`/api/timeline?${range}`)).share.byParent;
+  assert.deepEqual(imp.after.byParent, shareB, 'impact "after" matches the schedule once approved');
+  assert.equal(shareB.find(p => p.parent === dadId).overnights, 14);
+  // After approval the impact view still compares against the schedule it replaced.
+  const imp2 = await dad.get(`/api/rules/${b}/impact?${range}`);
+  assert.deepEqual(imp2.before.byParent, shareA);
+  assert.deepEqual(imp2.after.byParent, shareB);
+
+  // "Keep the current schedule too" (no supersedes): nothing is retired.
+  const { id: c } = await mom.post('/api/rules', { type: 'pattern', name: 'Extra', template: { ...wk, anchorDate: '2027-06-07' } });
+  await dad.post(`/api/rules/${c}/decide`, { decision: 'approve' });
+  assert.equal((await dad.get('/api/rules')).find(r => r.id === b).status, 'active');
+});
+
+test('disputing a not-yet-confirmed replacement restores the schedule it replaced', async (t) => {
+  const { base } = await start(t);
+  const mom = client(base), dad = client(base);
+  await mom.register('mom@example.com', 'Mom', PW.mom);
+  await mom.post('/api/family', { name: 'Smith', timezone: TZ });
+  const me = await mom.get('/api/me');
+  const momId = me.user.id;
+  // Before the co-parent joins: a custom pattern, then a replacement that retires it at once.
+  const { id: a } = await mom.post('/api/rules', { type: 'pattern', name: 'Old', template: { template: 'custom', anchorDate: '2026-12-07', options: { days: [momId] } } });
+  const { id: b } = await mom.post('/api/rules', { type: 'pattern', name: 'New', template: { template: 'custom', anchorDate: '2026-12-14', options: { days: [momId] } }, supersedes: a });
+  let rules = await mom.get('/api/rules');
+  assert.deepEqual([rules.find(r => r.id === a).status, rules.find(r => r.id === b).status], ['retired', 'unconfirmed']);
+  await dad.register('dad@example.com', 'Dad', PW.dad);
+  await dad.post('/api/family/join', { code: me.family.invite_code });
+  await dad.post(`/api/rules/${b}/decide`, { decision: 'reject', note: 'Not agreed' });
+  rules = await mom.get('/api/rules');
+  assert.deepEqual([rules.find(r => r.id === a).status, rules.find(r => r.id === b).status], ['unconfirmed', 'rejected']);
+  assert.ok((await mom.get('/api/audit')).some(x => x.action === 'restore' && x.entity_id === String(a)));
+});
+
+test('default split is the payer\'s share, the same for both parents', async (t) => {
+  const { base } = await start(t);
+  const f = await family(base, { withViewer: false });
+  await f.mom.put('/api/family', { default_split: 70 });
+  assert.equal((await f.dad.get('/api/me')).family.default_split, 70, 'one family-wide value');
+  const { id: e1 } = await f.mom.post('/api/expenses', { description: 'Shoes', amount: 100 });
+  const { id: e2 } = await f.dad.post('/api/expenses', { description: 'Books', amount: 100 });
+  const ex = await f.mom.get('/api/expenses');
+  assert.deepEqual([ex.find(e => e.id === e1).other_share_pct, ex.find(e => e.id === e2).other_share_pct], [30, 30]);
 });

@@ -36,9 +36,14 @@ export function buildApi(db, opts = {}) {
   function familyCtx(familyId) {
     const family = q('SELECT * FROM families WHERE id = ?').get(familyId);
     if (!family) return null;
-    const members = q(`SELECT m.user_id id, u.name, u.email, m.role, m.color FROM members m JOIN users u ON u.id = m.user_id WHERE m.family_id = ? ORDER BY m.joined_at`).all(family.id);
-    const parents = members.filter(m => m.role === 'parent').map(m => m.id);
-    return { user: null, member: null, family, members, parents, tz: family.timezone, coParent: null };
+    const members = q(`SELECT m.user_id id, u.name, u.email, m.role, m.color FROM members m JOIN users u ON u.id = m.user_id WHERE m.family_id = ? ORDER BY m.joined_at`).all(family.id)
+      .map(m => ({ ...m, deleted: isDeletedUser(m) }));
+    // `parents`: live parents only. A parent who deleted their account (anonymized) keeps a members row so
+    // history still resolves to "Deleted user", but cannot approve anything, be assigned new custody time,
+    // or hold one of the two parent places. `allParents` includes them (balance and history only).
+    const allParents = members.filter(m => m.role === 'parent').map(m => m.id);
+    const parents = members.filter(m => m.role === 'parent' && !m.deleted).map(m => m.id);
+    return { user: null, member: null, family, members, parents, allParents, tz: family.timezone, coParent: null };
   }
   function loadCtx(user) {
     const member = q('SELECT * FROM members WHERE user_id = ?').get(user.id);
@@ -49,7 +54,8 @@ export function buildApi(db, opts = {}) {
   const needFamily = (c) => { if (!c.family) throw forbidden('Set up or join a family first'); return c; };
   const needParent = (c) => { needFamily(c); if (c.member.role !== 'parent') throw forbidden('View-only access'); return c; };
   const log = (c, action, entity, id, data) => audit(db, c.family.id, c.user.id, action, entity, id, data);
-  const nameOf = (c, id) => c.members.find(m => m.id === id)?.name || 'Unknown';
+  /** Members first; any other user id the family's records reference (e.g. a viewer who deleted their account and lost the members row) falls back to the users table ("Deleted user"). */
+  const nameOf = (c, id) => c.members.find(m => m.id === id)?.name || (id == null ? null : q('SELECT name FROM users WHERE id = ?').get(id)?.name) || 'Unknown';
   /**
    * Notify the other parent(s): never the actor, never viewers, never deleted accounts.
    * `to` narrows recipients (e.g. the requester of a decision). See notify.js for the inbox/push side.
@@ -169,11 +175,13 @@ export function buildApi(db, opts = {}) {
     let fam = q('SELECT * FROM families WHERE invite_code = ?').get(cd), role = 'parent';
     if (!fam) { fam = q('SELECT * FROM families WHERE viewer_code = ?').get(cd); role = 'viewer'; }
     if (!fam) throw bad('Invite code not found');
-    const count = q("SELECT COUNT(*) n FROM members WHERE family_id = ? AND role = 'parent'").get(fam.id).n;
+    // Parent places: an anonymized (deleted) parent no longer holds one.
+    const count = q(`SELECT COUNT(*) n FROM members m JOIN users u ON u.id = m.user_id
+      WHERE m.family_id = ? AND m.role = 'parent' AND u.email <> 'deleted-' || u.id || '@invalid'`).get(fam.id).n;
     if (role === 'parent' && count >= 2) throw bad('This family already has two parents');
     const used = q('SELECT COUNT(*) n FROM members WHERE family_id = ?').get(fam.id).n;
     q('INSERT INTO members(family_id, user_id, role, color, joined_at) VALUES(?,?,?,?,?)').run(fam.id, c.user.id, role, COLORS[used % COLORS.length], nowIso());
-    if (role === 'parent') q('UPDATE families SET invite_code = NULL WHERE id = ?').run(fam.id); // one co-parent only
+    if (role === 'parent' && count + 1 >= 2) q('UPDATE families SET invite_code = NULL WHERE id = ?').run(fam.id); // both parent places taken
     const c2 = loadCtx(c.user);
     log(c2, 'join', 'member', c.user.id, { role, name: c.user.name });
     notify(c2, 'member_joined', { link: 'settings', entity: 'member', entityId: c.user.id,
@@ -220,13 +228,16 @@ export function buildApi(db, opts = {}) {
   // ---------- approvals (shared by custody rules and call rules) ----------
   const initialStatus = (c) => (c.coParent ? 'pending' : 'unconfirmed');
 
-  function createRule(c, { type, name, config, priority = 0, reason = '', supersedes = null }) {
+  /** Throws a 400 with the validation message. Parent ids must be live parents of the family. */
+  function validateRule(c, type, config) {
     const ids = c.parents;
-    if (type === 'pattern') validatePattern(config, ids);
-    else if (type === 'holiday') validateHoliday(config, ids);
-    else if (type === 'override') validateOverride(config, ids);
-    else if (type === 'default') validateDefault(config, ids);
-    else throw bad('Unknown rule type');
+    const v = { pattern: validatePattern, holiday: validateHoliday, override: validateOverride, default: validateDefault }[type];
+    if (!v) throw bad('Unknown rule type');
+    try { v(config || {}, ids); } catch (e) { throw bad(e.message); }
+  }
+
+  function createRule(c, { type, name, config, priority = 0, reason = '', supersedes = null }) {
+    validateRule(c, type, config);
     if (supersedes && !q('SELECT 1 FROM rules WHERE id = ? AND family_id = ?').get(supersedes, c.family.id)) throw bad('Superseded rule not found');
     const status = initialStatus(c);
     const id = Number(q(`INSERT INTO rules(family_id, type, name, config, priority, reason, status, requested_by, requested_at, supersedes)
@@ -249,6 +260,18 @@ export function buildApi(db, opts = {}) {
     }
   }
 
+  /** True if rule `oid` was retired because rule `byId` replaced it (see activateSideEffects). */
+  const retiredBy = (familyId, oid, byId) => !!q(`SELECT 1 FROM audit WHERE family_id = ? AND action = 'retire' AND entity = 'rule' AND entity_id = ?
+    AND json_extract(data, '$.by_rule') = ?`).get(familyId, String(oid), byId);
+  function restoreSuperseded(c, row) {
+    if (!row.supersedes) return;
+    const o = q('SELECT * FROM rules WHERE id = ? AND family_id = ?').get(row.supersedes, c.family.id);
+    if (!o || o.status !== 'retired' || !retiredBy(c.family.id, o.id, row.id)) return;
+    const back = o.decided_by ? 'active' : 'unconfirmed';
+    q('UPDATE rules SET status = ? WHERE id = ?').run(back, o.id);
+    log(c, 'restore', 'rule', o.id, { status: back, reason: 'Replacement was disputed', by_rule: row.id });
+  }
+
   function decide(c, table, id, decision, note) {
     needParent(c);
     const row = q(`SELECT * FROM ${table} WHERE id = ? AND family_id = ?`).get(id, c.family.id);
@@ -260,6 +283,8 @@ export function buildApi(db, opts = {}) {
     q(`UPDATE ${table} SET status = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ?`).run(status, c.user.id, nowIso(), str(note, 2000), id);
     log(c, decision, table === 'rules' ? 'rule' : 'call_rule', id, { previous: row.status, note: str(note, 2000) });
     if (table === 'rules' && status === 'active' && row.status === 'pending') activateSideEffects(c, id);
+    // Disputing a not-yet-confirmed replacement puts back the schedule it had retired.
+    if (table === 'rules' && status === 'rejected' && row.status === 'unconfirmed') restoreSuperseded(c, row);
     const isRule = table === 'rules', verb = decision === 'approve' ? 'approved' : 'declined';
     notify(c, isRule ? 'rule_decided' : 'call_rule_decided', { to: row.requested_by, link: isRule ? 'schedule' : 'calls', entity: isRule ? 'rule' : 'call_rule', entityId: id,
       title: `${actor(c)} ${verb} your ${isRule ? 'schedule request' : 'call schedule'}`, body: str(note, 200) ? `${row.name}: ${str(note, 200)}` : row.name });
@@ -281,7 +306,7 @@ export function buildApi(db, opts = {}) {
     if (!ACTIVE_STATUSES.has(row.status)) throw bad('Only active items can be ended');
     const entity = table === 'rules' ? 'rule' : 'call_rule';
     if (!c.coParent) {
-      q(`UPDATE ${table} SET status = 'retired' WHERE id = ?`).run(id);
+      q(`UPDATE ${table} SET status = 'retired', retire_requested_by = NULL, retire_requested_at = NULL WHERE id = ?`).run(id);
       log(c, 'retire', entity, id, { note: str(note) });
       return { ok: true, status: 'retired' };
     }
@@ -313,7 +338,9 @@ export function buildApi(db, opts = {}) {
   r.get('/api/holiday-presets', () => HOLIDAY_PRESETS);
   r.get('/api/rules', ({ c }) => {
     needFamily(c);
-    return loadRules(c.family.id).map(x => ({ ...x, requested_by_name: nameOf(c, x.requested_by), decided_by_name: x.decided_by ? nameOf(c, x.decided_by) : null }));
+    const rules = loadRules(c.family.id);
+    return rules.map(x => ({ ...x, requested_by_name: nameOf(c, x.requested_by), decided_by_name: x.decided_by ? nameOf(c, x.decided_by) : null,
+      supersedes_name: x.supersedes ? rules.find(o => o.id === x.supersedes)?.name ?? null : null }));
   });
   r.post('/api/rules', ({ c, body }) => {
     needParent(c);
@@ -341,8 +368,18 @@ export function buildApi(db, opts = {}) {
     const from = isDate(query.start) ? query.start : utcToLocalDate(Date.now(), c.tz);
     const to = isDate(query.end) ? query.end : addDays(from, 365);
     const isActive = ACTIVE_STATUSES.has(rule.status);
-    const without = timelineFor(c, from, to, { excludeRuleIds: [rule.id] });
-    const withR = timelineFor(c, from, to, isActive ? {} : { extraRules: [{ ...rule, status: 'active', id: 1e9 }] });
+    // A replacement (supersedes) retires the rule it replaces once it takes effect, so that rule is
+    // in "before" and not in "after".
+    const sup = rule.supersedes ? loadRules(c.family.id).find(x => x.id === rule.supersedes) : null;
+    let without, withR;
+    if (isActive) {
+      const restored = sup && sup.status === 'retired' && retiredBy(c.family.id, sup.id, rule.id) ? [{ ...sup, status: 'active' }] : [];
+      without = timelineFor(c, from, to, { excludeRuleIds: [rule.id], extraRules: restored });
+      withR = timelineFor(c, from, to);
+    } else {
+      without = timelineFor(c, from, to, { excludeRuleIds: [rule.id] });
+      withR = timelineFor(c, from, to, { extraRules: [{ ...rule, status: 'active', id: 1e9 }], excludeRuleIds: sup ? [sup.id] : [] });
+    }
     return {
       start: from, end: to,
       before: shareWithNames(c, timeShare(without.timeline, c.tz, from, to)),
@@ -352,11 +389,21 @@ export function buildApi(db, opts = {}) {
   r.post('/api/schedule/preview', ({ c, body }) => {
     needFamily(c);
     let config = body.config || {};
-    if (body.type === 'pattern' && body.template) config = patternFromTemplate(body.template);
+    if (body.type === 'pattern' && body.template) {
+      const tpl = typeof body.template === 'object' && body.template ? body.template : {};
+      try { config = { ...patternFromTemplate({ ...tpl }), effectiveFrom: tpl.effectiveFrom || null, effectiveTo: tpl.effectiveTo || null }; }
+      catch (e) { throw bad(e.message); }
+    }
+    validateRule(c, body.type, config);
     const from = isDate(body.start) ? body.start : utcToLocalDate(Date.now(), c.tz);
     const to = isDate(body.end) ? body.end : addDays(from, 28);
-    const t = timelineFor(c, from, to, { extraRules: [{ id: 1e9, type: body.type, name: 'Preview', config, priority: intOr(body.priority, 0), status: 'active' }] });
-    return { timeline: t.timeline, share: shareWithNames(c, timeShare(t.timeline, c.tz, from, to)) };
+    if (diffDays(to, from) > 800 || to <= from) throw bad('Range must be 1-800 days');
+    try {
+      // `supersedes`: preview as a replacement, without the rule it would retire.
+      const t = timelineFor(c, from, to, { extraRules: [{ id: 1e9, type: body.type, name: 'Preview', config, priority: intOr(body.priority, 0), status: 'active' }],
+        excludeRuleIds: body.supersedes ? [+body.supersedes] : [] });
+      return { timeline: t.timeline, share: shareWithNames(c, timeShare(t.timeline, c.tz, from, to)) };
+    } catch (e) { if (e instanceof HttpError) throw e; throw bad(e.message); }
   });
 
   r.get('/api/timeline', ({ c, query }) => {
@@ -604,14 +651,18 @@ export function buildApi(db, opts = {}) {
   });
 
   function balance(c) {
-    const me = c.user.id, other = c.coParent;
+    const me = c.user.id;
+    // The other side: every other parent, including one who deleted their account (their records still count).
+    const others = (c.allParents || c.parents).filter(p => p !== me);
     const ex = q("SELECT * FROM expenses WHERE family_id = ? AND status IN ('approved','reimbursed','requested','disputed')").all(c.family.id);
     // 'reimbursed' still counts as owed; the confirmed payment is what offsets it.
-    const owed = (payer, status) => ex.filter(e => e.paid_by === payer && (e.status === status || (status === 'approved' && e.status === 'reimbursed'))).reduce((s, e) => s + Math.round(e.amount_cents * e.other_share_pct / 100), 0);
-    const pay = (from, to) => q("SELECT COALESCE(SUM(amount_cents),0) s FROM payments WHERE family_id = ? AND from_user = ? AND to_user = ? AND status = 'confirmed'").get(c.family.id, from, to ?? -1).s;
-    const net = owed(me, 'approved') - owed(other, 'approved') - pay(other, me) + pay(me, other);
-    return { net_cents: net, /* >0: co-parent owes me */ pending_to_me: owed(me, 'requested'), pending_from_me: owed(other, 'requested'),
-      disputed_cents: owed(me, 'disputed') + owed(other, 'disputed'),
+    const owed1 = (payer, status) => ex.filter(e => e.paid_by === payer && (e.status === status || (status === 'approved' && e.status === 'reimbursed'))).reduce((s, e) => s + Math.round(e.amount_cents * e.other_share_pct / 100), 0);
+    const owedOthers = (status) => others.reduce((s, o) => s + owed1(o, status), 0);
+    const pay1 = (from, to) => q("SELECT COALESCE(SUM(amount_cents),0) s FROM payments WHERE family_id = ? AND from_user = ? AND to_user = ? AND status = 'confirmed'").get(c.family.id, from, to).s;
+    const paidMe = others.reduce((s, o) => s + pay1(o, me), 0), paidByMe = others.reduce((s, o) => s + pay1(me, o), 0);
+    const net = owed1(me, 'approved') - owedOthers('approved') - paidMe + paidByMe;
+    return { net_cents: net, /* >0: co-parent owes me */ pending_to_me: owed1(me, 'requested'), pending_from_me: owedOthers('requested'),
+      disputed_cents: owed1(me, 'disputed') + owedOthers('disputed'),
       unconfirmed_payments: q("SELECT COUNT(*) n FROM payments WHERE family_id = ? AND to_user = ? AND status = 'sent'").get(c.family.id, me).n };
   }
   r.get('/api/balance', ({ c }) => { needFamily(c); return balance(c); });
@@ -686,10 +737,12 @@ export function buildApi(db, opts = {}) {
   r.post('/api/tone-check', ({ body }) => checkTone(body.text));
   r.get('/api/threads', ({ c }) => {
     needFamily(c);
+    // Viewers never record reads (receipts are between the parents), so nothing is ever "unread" for them.
+    const viewer = c.member.role !== 'parent';
     return q(`SELECT t.*, (SELECT MAX(created_at) FROM messages WHERE thread_id = t.id) last_at,
       (SELECT COUNT(*) FROM messages m WHERE m.thread_id = t.id) count,
       (SELECT COUNT(*) FROM messages m WHERE m.thread_id = t.id AND m.author <> ? AND NOT EXISTS (SELECT 1 FROM message_reads r WHERE r.message_id = m.id AND r.user_id = ?)) unread
-      FROM threads t WHERE t.family_id = ? ORDER BY last_at DESC`).all(c.user.id, c.user.id, c.family.id);
+      FROM threads t WHERE t.family_id = ? ORDER BY last_at DESC`).all(c.user.id, c.user.id, c.family.id).map(t => (viewer ? { ...t, unread: 0 } : t));
   });
   function addMessage(c, threadId, text) {
     const body = str(text, 8000); if (!body) throw bad('Write a message');

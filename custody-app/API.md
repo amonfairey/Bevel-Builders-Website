@@ -234,17 +234,17 @@ Signed in, in a family:
               "invite_code": "C9D62D33F6", "viewer_code": "18D8D369C6" },
   "unread_notifications": 3,
   "role": "parent",
-  "members": [ { "id": 1, "name": "Sam", "email": "sam@example.com", "role": "parent", "color": "#2f6f9f" } ],
+  "members": [ { "id": 1, "name": "Sam", "email": "sam@example.com", "role": "parent", "color": "#2f6f9f", "deleted": false } ],
   "children": [ { "id": 1, "name": "Ava", "birthdate": "2016-04-02", "info": { "school": "Oak" } } ],
   "primary": 1,
   "icsBase": "/ics/uWFaN-DVuPvVmUFCMb8VY2zI8HxlADQX.ics"
 }
 ```
-- `invite_code` and `viewer_code` are only present for parents. `invite_code` becomes `null` once the co-parent has joined.
-- `default_split` is this parent's default share of expenses in percent (the other parent's share defaults to `100 - default_split`).
+- `invite_code` and `viewer_code` are only present for parents. `invite_code` becomes `null` once both parent places are taken, and a fresh one is issued when a parent deletes their account (see `POST /api/account/delete`).
+- `default_split` is **one family-wide value, the same for both parents**: the share (percent) of a new expense covered by **the parent who paid it**. The other parent's share on a new expense (`other_share_pct`) defaults to `100 - default_split`, whoever paid. It is not "your share": with `default_split: 70`, Sam paying $100 pre-fills Jordan's share as 30%, and Jordan paying $100 pre-fills Sam's share as 30%.
 - `primary` is the user id of the primary custodial parent (the background default), or `null`.
 - `icsBase` is this user's private calendar subscription path. Prefix with the server origin; add `?include=custody`, `?include=events` or `?include=custody,events`. Use `webcal://` for one-tap subscribe on iPhone.
-- A deleted co-parent appears in `members` with name `Deleted user`.
+- `members[].deleted` is `true` for a parent who deleted their account. They stay in `members` with name `Deleted user` (and email `deleted-<id>@invalid`) so past records still resolve, but they are **not** a live parent: clients should skip them when looking for "the co-parent", in parent pickers and in approval wording. A view-only member who deletes their account is removed from `members`.
 
 #### `POST /api/account/password`
 User. Body: `{ current, next }` → `{"ok":true}`.
@@ -259,6 +259,7 @@ What happens:
 - Always removed: the account's sessions, push tokens, report links, imported calendars it owns, and its notifications.
 - **Nobody else is left in the family** (or no family): the whole family is erased, including messages, notes, the audit log, files and every other record. This cannot be undone.
 - **A co-parent or view-only member remains**: messages, notes and approvals are also the other parent's records, so the account is **anonymized**, not erased: name becomes `Deleted user`, email `deleted-<id>@invalid`, the password and calendar link stop working. A parent's past records stay attributed to `Deleted user`; a view-only member is removed from the family. The remaining parents get a `member_left` notification and the audit log records `delete_account`. The email address can be used to sign up again.
+- **After a parent is anonymized** they no longer count as a parent: they can't approve anything, can't be assigned new custody time, calls or driving, and don't hold a parent place. The family gets a **fresh `invite_code`** so a new co-parent can join. Until one does, the remaining parent's new requests are `unconfirmed` (in effect, like before a co-parent first joined), activities are `accepted`, and ending an item applies at once. Requests the remaining parent made earlier stay `pending`; they can withdraw them, or the new co-parent decides them after joining (and confirms or disputes the `unconfirmed` ones). Existing rules that assign time to the deleted parent stay in effect until they are ended or replaced. Their expenses and payments still count in `/api/balance`.
 
 ### Family
 
@@ -269,10 +270,10 @@ Errors: 400 `You already belong to a family`, `Unknown time zone`.
 
 #### `POST /api/family/join`
 User without a family. Body: `{ code }` (invite code → parent, viewer code → view-only). → `{"ok":true,"role":"parent"|"viewer"}`. Existing parents get `member_joined`.
-Errors: 400 `You already belong to a family`, `Invite code not found`, `This family already has two parents`.
+Errors: 400 `You already belong to a family`, `Invite code not found`, `This family already has two parents` (a parent who deleted their account does not count).
 
 #### `PUT /api/family`
-Parent. Body: `{ name?, timezone?, default_split? (0-100) }` → `{"ok":true}`. Errors: 400 `Unknown time zone`.
+Parent. Body: `{ name?, timezone?, default_split? (0-100) }` → `{"ok":true}`. `default_split` is family-wide: the share covered by whichever parent paid an expense (see `GET /api/me`). Errors: 400 `Unknown time zone`.
 
 #### `POST /api/family/viewer-code`
 Parent. Rotates the view-only invite code. → `{"viewer_code":"A1B2C3D4E5"}`.
@@ -293,10 +294,11 @@ Parent. Body: `{ name?, birthdate?, info? }`. `info` is a flat object of strings
   "status": "pending", "requested_by": 1, "requested_at": "2026-11-28T04:08:09.604Z",
   "decided_by": null, "decided_at": null, "decision_note": null,
   "retire_requested_by": null, "retire_requested_at": null, "supersedes": null,
-  "requested_by_name": "Sam", "decided_by_name": null
+  "requested_by_name": "Sam", "decided_by_name": null, "supersedes_name": null
 }
 ```
-`status`: `pending` (awaiting the other parent), `unconfirmed` (made before the co-parent joined; in effect), `active`, `rejected`, `withdrawn`, `retired`. Only `active` and `unconfirmed` affect the schedule. A non-null `retire_requested_by` means someone asked to end it.
+`supersedes` is the id of the rule this one replaces (it is retired when this one takes effect); `supersedes_name` is that rule's name. Clients show it as "Replaces: <name>".
+`status`: `pending` (awaiting the other parent), `unconfirmed` (made while there was no live co-parent: before they joined, or after they deleted their account; in effect), `active`, `rejected`, `withdrawn`, `retired`. Only `active` and `unconfirmed` affect the schedule. A non-null `retire_requested_by` means someone asked to end it.
 
 `type` and `config`:
 
@@ -312,11 +314,17 @@ Member. → `Rule[]` ordered by id.
 
 #### `POST /api/rules`
 Parent. Body: `{ type, name?, config?, template?, priority?, reason?, supersedes? }`.
-For `type: "pattern"` you can send `template` instead of `config`:
-`{ template: "alternating_weekends"|"every_weekend"|"week_on_week_off"|"2-2-3"|"2-2-5-5"|"3-4-4-3"|"custom", anchorDate, parentA, parentB, exchangeTime?: "18:00", options?, effectiveFrom?, effectiveTo? }`.
+For `type: "pattern"` you can send `template` instead of `config`. `template` is an **object** (the template name goes in its own `template` field):
+```json
+{ "type": "pattern", "name": "School year",
+  "template": { "template": "alternating_weekends", "anchorDate": "2026-12-04", "parentA": 1, "parentB": 2,
+                "exchangeTime": "18:00", "options": { "midweek": true }, "effectiveFrom": null, "effectiveTo": null },
+  "supersedes": 2 }
+```
+`template.template`: `"alternating_weekends"|"every_weekend"|"week_on_week_off"|"2-2-3"|"2-2-5-5"|"3-4-4-3"|"custom"`; `anchorDate` required; `parentA`/`parentB` are user ids of live parents; `exchangeTime` default `"18:00"`; `options`, `effectiveFrom`, `effectiveTo` optional.
 Options: `alternating_weekends` and `every_weekend` take `weekendStart`/`weekendEnd`; `alternating_weekends` also takes `midweek: true`, `midweekStart`, `midweekEnd`; `custom` takes `days`: an array (1-56) of parent ids or `null`, one per day.
-`supersedes`: id of a rule this one replaces once approved.
-→ `{"id":3}`. Status is `pending` (co-parent notified with `rule_requested`) or `unconfirmed` if no co-parent yet.
+`supersedes`: id of a rule this one replaces. It is retired when this one is approved, or at once if this one is `unconfirmed`. If an `unconfirmed` replacement is later disputed, the rule it replaced is put back (audit action `restore`). Use it when changing the regular schedule, or the old pattern keeps applying alongside the new one.
+→ `{"id":3}`. Status is `pending` (co-parent notified with `rule_requested`) or `unconfirmed` if there is no live co-parent (not joined yet, or deleted their account).
 Errors: 400 with the validation message (e.g. `Pattern needs an anchor date`, `Change request periods need start and end date/times`).
 
 #### `POST /api/rules/:id/decide`
@@ -328,7 +336,7 @@ Parent, own pending request. → `{"ok":true}`. Errors: 400 `Only your own pendi
 
 #### `POST /api/rules/:id/retire`
 Parent. Body: `{ note? }`. Asks to end an active rule.
-→ no co-parent yet: `{"ok":true,"status":"retired"}`; otherwise `{"ok":true,"status":"active","retire_pending":true}` and the other parent gets `rule_retire_requested`.
+→ no live co-parent: `{"ok":true,"status":"retired"}`; otherwise `{"ok":true,"status":"active","retire_pending":true}` and the other parent gets `rule_retire_requested`.
 Errors: 400 `Only active items can be ended`, `Ending this is already requested`; 404.
 
 #### `POST /api/rules/:id/retire-decide`
@@ -337,9 +345,11 @@ Errors: 403 `The other parent has to approve this`; 404 `No end request`.
 
 #### `GET /api/rules/:id/impact?start=&end=`
 Member. Time share with and without the rule (default: today + 365 days). → `{ start, end, before: Share, after: Share }`.
+If the rule has `supersedes`, the replaced rule counts in `before` and not in `after` (for a rule already in effect, `before` puts back the rule it retired), so the comparison shows the actual change.
 
 #### `POST /api/schedule/preview`
-Member. Body: `{ type, config? | template?, priority?, start?, end? }` (default 28 days from today). → `{ timeline: Interval[], share: Share }`. Nothing is saved.
+Member. Body: `{ type, config? | template?, priority?, supersedes?, start?, end? }` (default 28 days from today, max 800). `template` is the same object as for `POST /api/rules`. With `supersedes`, the preview leaves out that rule, as it would be once replaced. → `{ timeline: Interval[], share: Share }`. Nothing is saved.
+Errors: 400 with the validation message (e.g. `Unknown template: weekly`, `Pattern needs an anchor date`, `Custom cycle needs 1-56 days`, `Unknown rule type`, `Range must be 1-800 days`).
 
 #### `GET /api/timeline?start=&end=`
 Member. Default today + 42 days; max 800 days. → `{ start, end, timezone, timeline: Interval[], share: Share, transitions: Transition[] }`.
@@ -440,7 +450,7 @@ Member. → newest first:
 
 #### `POST /api/expenses`
 Parent. Body: `{ description, amount, date?, category?, child_ids?, event_id?, other_share_pct?, receipt?, request_reimbursement? }`.
-- `other_share_pct` 0-100, default `100 - family.default_split`.
+- `other_share_pct` 0-100: the share owed by the parent who did **not** pay. Default `100 - family.default_split` (the payer covers `default_split`), whichever parent paid.
 - `receipt`: `{ name, type: "image/png"|"image/jpeg"|"image/gif"|"image/webp"|"image/heic"|"application/pdf", data: "<base64>" }`, under 8 MB. Stored once by SHA-256.
 - `request_reimbursement: false` logs it without asking (status `logged`); otherwise `requested` and the co-parent gets `expense_requested`.
 
@@ -489,7 +499,7 @@ Parent. Body: `{ target_type, target_id, body, attachment? }`.
 User. Body: `{ text }` → `{ ok: boolean, issues: [{ id, label, tip, matches: string[] }], wordCount }`. Issue ids: `insult`, `profanity`, `absolute`, `blame`, `threat`, `kids`, `sarcasm`, `caps`, `punct`, `long`. Advisory only; sending is never blocked.
 
 #### `GET /api/threads`
-Member. → `[{ id, family_id, subject, topic, created_by, created_at, last_at, count, unread }]`, most recent activity first. `unread` counts messages from others you haven't opened.
+Member. → `[{ id, family_id, subject, topic, created_by, created_at, last_at, count, unread }]`, most recent activity first. `unread` counts messages from others you haven't opened. Always `0` for view-only members (they don't record read receipts).
 
 #### `POST /api/threads`
 Parent. Body: `{ subject (max 150), topic?: "general"|"schedule"|"expenses"|"school"|"medical"|"activities"|"other", body }` → `{"id":12}`. Creates the thread with its first message; co-parent gets `message`.
@@ -575,7 +585,7 @@ User. Body: `{ token }` → `{"ok":true}`. Only removes the token if it is yours
 ### Records
 
 #### `GET /api/audit?limit=200`
-Member. Newest first, `limit` max 1000. → `[{ id, family_id, seq, ts, user_id, action, entity, entity_id, data: object, prev_hash, hash, user_name }]`.
+Member. Newest first, `limit` max 1000. → `[{ id, family_id, seq, ts, user_id, action, entity, entity_id, data: object, prev_hash, hash, user_name }]`. `user_name` is `Deleted user` for anyone who deleted their account (including a former view-only member, who is no longer in `members`).
 
 #### `GET /api/audit/verify`
 Member. → `{ ok: boolean, entries: number, head: "<sha256>", problems: string[] }`. `head` is the fingerprint parents should keep.

@@ -1,7 +1,7 @@
 // Account self-service: change password, delete account.
 // Deletion is required in-app by Apple (App Store Review Guideline 5.1.1(v)).
 import { bad, HttpError } from './http.js';
-import { audit, hashPassword, verifyPassword, token, IMMUTABLE_TRIGGERS, DROP_IMMUTABLE_TRIGGERS } from './db.js';
+import { audit, hashPassword, verifyPassword, token, code, IMMUTABLE_TRIGGERS, DROP_IMMUTABLE_TRIGGERS } from './db.js';
 
 /** Anonymized accounts keep their row (so authorship still resolves) under an address no one can register. */
 export const deletedEmail = (id) => `deleted-${id}@invalid`;
@@ -70,6 +70,9 @@ export function accountRoutes(r, { db, notifier }) {
         .run('Deleted user', deletedEmail(uid), hashPassword(token(32)), token(), uid);
       // Parents keep their members row so authorship of past records still resolves; viewers authored nothing.
       if (role === 'viewer') q('DELETE FROM members WHERE user_id = ?').run(uid);
+      // A deleted parent no longer holds a parent place: a fresh invite code lets a new co-parent join
+      // (the old code was consumed when this parent joined). Shown to the remaining parent in Settings.
+      if (role === 'parent') q('UPDATE families SET invite_code = ? WHERE id = ?').run(code(), fid);
       audit(db, fid, uid, 'delete_account', 'member', uid, { role });
     });
     const parents = c.members.filter(m => m.role === 'parent' && m.id !== uid && !isDeletedUser(m)).map(m => m.id);

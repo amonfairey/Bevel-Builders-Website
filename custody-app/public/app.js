@@ -121,9 +121,14 @@ const tz = () => S.me?.family?.timezone || Intl.DateTimeFormat().resolvedOptions
 const member = (id) => S.me?.members?.find(m => m.id === id);
 const nameOf = (id) => member(id)?.name || 'Unassigned';
 const colorOf = (id) => member(id)?.color || '#9aa4ab';
-const parents = () => (S.me?.members || []).filter(m => m.role === 'parent');
+/** A parent who deleted their account stays in `members` (so history shows "Deleted user") but is not a live parent. */
+const isDeletedMember = (m) => !!m && (m.deleted === true || /^deleted-\d+@invalid$/.test(m.email || ''));
+const allParents = () => (S.me?.members || []).filter(m => m.role === 'parent');
+const parents = () => allParents().filter(m => !isDeletedMember(m));
 const isParent = () => S.me?.role === 'parent';
 const other = () => parents().find(p => p.id !== S.me.user.id);
+/** For balance wording when the co-parent hasn't joined or deleted their account. */
+const otherName = () => other()?.name || 'The other parent';
 const fmt = (ms, o) => new Intl.DateTimeFormat('en-US', { timeZone: tz(), ...o }).format(ms);
 const fmtDT = (ms) => fmt(ms, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const fmtT = (ms) => fmt(ms, { hour: 'numeric', minute: '2-digit' });
@@ -400,7 +405,8 @@ VIEWS.dashboard = async (main) => {
   ].filter(([k]) => d.pending[k]);
   mount(main, 
     head(`Hi, ${S.me.user.name}`, fmtDate(todayLocal())),
-    !other() ? h('div', { class: 'alert warn' }, 'Your co-parent has not joined yet. Share your invite code from ', h('a', { href: '#/settings' }, 'Settings'), '. Until they join, schedule items you add are marked "not yet confirmed".') : null,
+    !other() ? h('div', { class: 'alert warn' }, allParents().some(isDeletedMember) ? 'Your co-parent deleted their account. A new co-parent can join with the invite code in ' : 'Your co-parent has not joined yet. Share your invite code from ',
+      h('a', { href: '#/settings' }, 'Settings'), '. Until they join, schedule items you add are marked "not yet confirmed".') : null,
     h('div', { class: 'grid' },
       h('div', { class: 'card' }, h('div', { class: 'muted small' }, 'Right now the kids are with'),
         h('div', { class: 'big row', style: 'gap:8px' }, parentDot(nowP), nowP ? youOr(nowP) : 'No default set'),
@@ -409,7 +415,7 @@ VIEWS.dashboard = async (main) => {
         items.length ? h('div', { class: 'list' }, items.map(([k, route, label]) => h('div', { class: 'item' }, h('a', { href: `#/${route}` }, `${d.pending[k]} ${label}`))))
           : h('p', { class: 'empty' }, totalPending ? '' : 'Nothing waiting on you.')),
       d.balance ? h('div', { class: 'card' }, h('div', { class: 'muted small' }, 'Reimbursement balance'),
-        h('div', { class: 'big' }, d.balance.net_cents === 0 ? 'Even' : d.balance.net_cents > 0 ? `${nameOf(other()?.id)} owes you ${money(d.balance.net_cents)}` : `You owe ${money(-d.balance.net_cents)}`),
+        h('div', { class: 'big' }, d.balance.net_cents === 0 ? 'Even' : d.balance.net_cents > 0 ? `${otherName()} owes you ${money(d.balance.net_cents)}` : `You owe ${money(-d.balance.net_cents)}`),
         h('div', { class: 'muted small' }, `Pending: ${money(d.balance.pending_to_me)} to you, ${money(d.balance.pending_from_me)} from you`), h('a', { href: '#/expenses' }, 'Expenses')) : null),
     h('div', { class: 'grid', style: 'margin-top:14px' },
       h('div', { class: 'card' }, h('h2', null, `Parenting time ${todayLocal().slice(0, 4)} (scheduled, full year)`), shareView(d.share_year),
@@ -536,7 +542,7 @@ VIEWS.calendar = async (main) => {
   }
   mount(main, head(`${MONTHS[m - 1]} ${y}`, 'Color bar = who has the kids. Click a day for details, notes or a change request.',
     h('button', { onclick: () => go(-1) }, '‹ Prev'), h('button', { onclick: () => { calMonth = today.slice(0, 7); clear(main); VIEWS.calendar(main); } }, 'Today'), h('button', { onclick: () => go(1) }, 'Next ›')),
-    h('div', { class: 'legend', style: 'margin-bottom:10px' }, parents().map(p => h('span', null, parentDot(p.id), p.id === S.me.user.id ? `${p.name} (you)` : p.name)),
+    h('div', { class: 'legend', style: 'margin-bottom:10px' }, allParents().map(p => h('span', null, parentDot(p.id), p.id === S.me.user.id ? `${p.name} (you)` : p.name)),
       h('span', null, h('span', { class: 'dot', style: 'border:1px dashed var(--muted)' }), 'From your synced calendars')),
     cal, h('div', { class: 'card', style: 'margin-top:14px' }, h('h2', null, 'This month'), shareView(monthShare(tl, first, addDays(`${y}-${pad(m)}-01`, daysIn(y, m))))));
 };
@@ -603,6 +609,9 @@ function ruleSummary(r) {
   return '';
 }
 
+/** "Replaces: <name>" for a rule that supersedes another (it ends that rule once it takes effect). */
+const replacesLine = (r) => (r.supersedes ? h('div', { class: 'small', 'data-replaces': r.supersedes }, h('b', null, 'Replaces: '), r.supersedes_name || `schedule item #${r.supersedes}`) : null);
+
 VIEWS.schedule = async (main) => {
   const [rules, presets] = await Promise.all([get('/api/rules'), get('/api/holiday-presets')]);
   S.presets = presets;
@@ -622,6 +631,7 @@ VIEWS.schedule = async (main) => {
     h('div', { class: 'item-head' }, h('div', null, h('b', null, r.name), ' ', badge(r.status), r.retire_requested_by ? h('span', { class: 'badge warn', style: 'margin-left:4px' }, 'End requested') : null),
       h('span', { class: 'small muted' }, `Requested by ${r.requested_by_name}, ${fmtIso(r.requested_at)}`)),
     h('div', { class: 'small' }, ruleSummary(r)),
+    replacesLine(r),
     r.reason ? h('div', { class: 'small muted' }, `Reason: ${r.reason}`) : null,
     r.decided_by ? h('div', { class: 'small muted' }, `${r.status === 'rejected' ? 'Rejected' : 'Approved'} by ${r.decided_by_name}, ${fmtIso(r.decided_at)}${r.decision_note ? ` — "${r.decision_note}"` : ''}`) : null,
     h('div', { class: 'actions' },
@@ -636,7 +646,7 @@ VIEWS.schedule = async (main) => {
       isParent() && ['active', 'unconfirmed'].includes(r.status) && !r.retire_requested_by && r.type !== 'default' ? h('button', { onclick: async () => {
         const c = await confirmBox('Request to end this rule', other() ? 'Your co-parent has to approve before it stops applying.' : 'It will stop applying now.', { okLabel: 'Request', withNote: true });
         if (c) { await attempt(() => post(`/api/rules/${r.id}/retire`, { note: c.note }), 'Requested'); rerender(); } } }, 'Request to end') : null,
-      h('button', { onclick: () => modal(r.name, h('div', null, h('p', { class: 'small' }, ruleSummary(r)), notesPanel('rule', r.id))) }, 'Notes')));
+      h('button', { onclick: () => modal(r.name, h('div', null, h('p', { class: 'small' }, ruleSummary(r)), replacesLine(r), notesPanel('rule', r.id))) }, 'Notes')));
 
   const rerender = () => { clear(main); VIEWS.schedule(main); };
   async function decideRule(r, decision) {
@@ -649,7 +659,7 @@ VIEWS.schedule = async (main) => {
 
   mount(main, 
     head('Custody schedule', 'Layers: primary parent (background) → regular schedule → holidays → one-time changes. Higher layers win.',
-      isParent() ? [h('button', { onclick: () => patternForm() }, '+ Regular schedule'), h('button', { onclick: () => holidayForm() }, '+ Holiday / period'),
+      isParent() ? [h('button', { onclick: () => patternForm(rules) }, '+ Regular schedule'), h('button', { onclick: () => holidayForm() }, '+ Holiday / period'),
         h('button', { class: 'primary', onclick: () => overrideForm() }, 'Request a change / swap')] : null),
     needsMe.length ? h('div', { class: 'card', style: 'border-color:var(--warn)' }, h('h2', null, 'Waiting for your decision'), h('div', { class: 'list' }, needsMe.map(ruleItem))) : null,
     mine.length ? h('div', { class: 'card' }, h('h2', null, 'Your requests awaiting the other parent'), h('div', { class: 'list' }, mine.map(ruleItem))) : null,
@@ -686,9 +696,15 @@ function defaultForm() {
   });
 }
 
-function patternForm() {
+function patternForm(rules = []) {
   modal('Regular schedule', (close) => {
     const ps = parentOpts();
+    // Replacing a regular schedule: the chosen pattern is retired once this one is approved (or at once, before the co-parent joins).
+    const current = rules.filter(r => r.type === 'pattern' && ['active', 'unconfirmed'].includes(r.status)).sort((a, b) => b.id - a.id);
+    const replaceDefault = (current.find(r => r.status === 'active') || current[0])?.id ?? '';
+    const replaces = current.length ? field('Replaces', sel('supersedes', [...current.map(r => [r.id, `${r.name}${r.status === 'unconfirmed' ? ' (not yet confirmed)' : ''}`]), ['', 'Keep the current schedule too']], replaceDefault),
+      'Once this is approved, the schedule you pick here ends and this one takes its place. Pick "Keep the current schedule too" to run both.') : null;
+    const supersedes = () => (form.elements.supersedes?.value ? +form.elements.supersedes.value : undefined);
     const primary = S.me.primary || ps[0]?.[0];
     const nonPrimary = ps.find(p => p[0] !== primary)?.[0] ?? primary;
     const today = todayLocal();
@@ -697,7 +713,7 @@ function patternForm() {
     const customBox = h('div');
     const preview = h('div');
     const form = h('form', { onsubmit: async (e) => { e.preventDefault();
-      await attempt(() => post('/api/rules', { type: 'pattern', name: form.elements.name.value || undefined, reason: form.elements.reason.value, template: buildTemplate() }), other() ? 'Sent for approval' : 'Saved');
+      await attempt(() => post('/api/rules', { type: 'pattern', name: form.elements.name.value || undefined, reason: form.elements.reason.value, template: buildTemplate(), supersedes: supersedes() }), other() ? 'Sent for approval' : 'Saved');
       close(); afterSave(); } });
     const tpl = sel('template', [['alternating_weekends', 'Alternating weekends'], ['every_weekend', 'Every weekend'], ['week_on_week_off', 'Week on / week off'], ['2-2-3', '2-2-3 rotation (50/50)'], ['2-2-5-5', '2-2-5-5 rotation (50/50)'], ['3-4-4-3', '3-4-4-3 rotation (50/50)'], ['custom', 'Custom cycle (pick each day)']], 'alternating_weekends');
     const anchor = inp('anchorDate', { type: 'date', value: nextFri, required: true });
@@ -741,6 +757,7 @@ function patternForm() {
     tpl.addEventListener('change', sync);
     form.append(
       field('Name', inp('name', { placeholder: 'e.g. School-year schedule' })),
+      replaces,
       field('Pattern', tpl),
       h('div', { class: 'field' }, h('label', null, 'Cycle starts on'), anchor, hint),
       h('div', { class: 'fields' }, h('div', { class: 'field' }, labelA, pA), h('div', { class: 'field' }, labelB, pB)),
@@ -749,7 +766,7 @@ function patternForm() {
       field('Reason / order reference', h('textarea', { name: 'reason', placeholder: 'e.g. Per stipulated order, section 3' })),
       h('div', { class: 'actions' }, h('button', { type: 'button', onclick: async () => {
         const start = anchor.value;
-        const r = await attempt(() => post('/api/schedule/preview', { type: 'pattern', template: buildTemplate(), start, end: addDays(start, 28) }));
+        const r = await attempt(() => post('/api/schedule/preview', { type: 'pattern', template: buildTemplate(), supersedes: supersedes(), start, end: addDays(start, 28) }));
         mount(clear(preview), h('h3', null, 'Next 4 weeks'), h('div', { class: 'seg-preview' }, r.timeline.map(iv => h('div', { style: `flex:${iv.end - iv.start};background:${colorOf(iv.parent)}`, title: `${nameOf(iv.parent)}: ${fmtDT(iv.start)} → ${fmtDT(iv.end)}` }))), shareView(r.share));
       } }, 'Preview'), h('button', { class: 'primary', type: 'submit' }, other() ? 'Send for approval' : 'Save')),
       preview);
@@ -902,7 +919,7 @@ VIEWS.expenses = async (main) => {
   const payToConfirm = pays.filter(p => p.status === 'sent' && p.to_user === me);
   const row = (e) => h('div', { class: 'item' },
     h('div', { class: 'item-head' }, h('div', null, h('b', null, e.description), ' ', badge(e.status)), h('b', null, money(e.amount_cents))),
-    h('div', { class: 'small muted' }, [e.date, e.category, childNames(e.child_ids), `paid by ${nameOf(e.paid_by)}`, `${e.paid_by === me ? nameOf(co?.id) : 'your'} share ${e.other_share_pct}% = ${money(e.owed_cents)}`].filter(Boolean).join(' · ')),
+    h('div', { class: 'small muted' }, [e.date, e.category, childNames(e.child_ids), `paid by ${nameOf(e.paid_by)}`, `${e.paid_by === me ? `${co?.name || 'other parent'}'s` : 'your'} share ${e.other_share_pct}% = ${money(e.owed_cents)}`].filter(Boolean).join(' · ')),
     e.decision_note ? h('div', { class: 'small muted' }, `Response: "${e.decision_note}"`) : null,
     h('div', { class: 'actions' },
       e.receipt_hash ? h('a', { class: 'btn', href: `/api/files/${e.receipt_hash}`, target: '_blank', rel: 'noopener' }, 'Receipt') : h('span', { class: 'badge' }, 'No receipt'),
@@ -915,7 +932,7 @@ VIEWS.expenses = async (main) => {
   mount(main, head('Expenses & reimbursement', 'Log shared costs with receipts. The other parent approves or disputes; payments are confirmed by the recipient.',
     isParent() ? [co ? h('button', { onclick: () => paymentForm(exps.filter(e => e.status === 'approved' && e.paid_by !== me)) }, 'Record a payment I sent') : null, h('button', { class: 'primary', onclick: () => expenseForm() }, '+ Add expense')] : null),
     h('div', { class: 'grid' },
-      h('div', { class: 'card' }, h('div', { class: 'muted small' }, 'Approved balance'), h('div', { class: 'big' }, bal.net_cents === 0 ? 'Even' : bal.net_cents > 0 ? `${nameOf(co?.id)} owes you ${money(bal.net_cents)}` : `You owe ${money(-bal.net_cents)}`)),
+      h('div', { class: 'card' }, h('div', { class: 'muted small' }, 'Approved balance'), h('div', { class: 'big' }, bal.net_cents === 0 ? 'Even' : bal.net_cents > 0 ? `${otherName()} owes you ${money(bal.net_cents)}` : `You owe ${money(-bal.net_cents)}`)),
       h('div', { class: 'card' }, h('div', { class: 'muted small' }, 'Awaiting approval'), h('div', null, `To you: ${money(bal.pending_to_me)}`), h('div', null, `From you: ${money(bal.pending_from_me)}`), bal.disputed_cents ? h('div', { style: 'color:var(--bad)' }, `Disputed: ${money(bal.disputed_cents)}`) : null)),
     payToConfirm.length ? h('div', { class: 'card', style: 'border-color:var(--warn);margin-top:14px' }, h('h2', null, 'Did you receive these payments?'), h('div', { class: 'list' }, payToConfirm.map(p => h('div', { class: 'item' },
       h('div', { class: 'item-head' }, h('b', null, `${money(p.amount_cents)} from ${nameOf(p.from_user)}`), h('span', { class: 'small muted' }, `${p.date} · ${p.method || 'method not given'}`)), p.note ? h('div', { class: 'small' }, p.note) : null,
@@ -939,7 +956,8 @@ function expenseForm(pre = {}) {
       h('div', { class: 'fields' }, field('Amount ($)', inp('amount', { type: 'number', step: '0.01', min: '0.01', required: true, value: pre.amount || '' })), field('Date', inp('date', { type: 'date', value: todayLocal() })),
         field('Category', sel('category', [['medical', 'Medical / dental'], ['school', 'School / tuition'], ['childcare', 'Childcare'], ['activities', 'Activities / sports'], ['clothing', 'Clothing'], ['travel', 'Travel'], ['other', 'Other']], pre.event_id ? 'activities' : 'other'))),
       h('div', { class: 'field' }, h('label', null, 'For'), h('div', { class: 'row' }, S.me.children.map(c => h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'kids', 'data-multi': '1', value: c.id, checked: pre.child_ids ? pre.child_ids.includes(c.id) : true }), c.name)))),
-      field(`${other() ? other().name + "'s" : "Other parent's"} share (%)`, inp('share', { type: 'number', min: 0, max: 100, value: 100 - S.me.family.default_split }), 'Use the split in your order. Default is set in Settings.'),
+      field(`${other() ? other().name + "'s" : "Other parent's"} share (%)`, inp('share', { type: 'number', min: 0, max: 100, value: 100 - S.me.family.default_split }),
+        `Pre-filled from the family default in Settings: the parent who paid covers ${S.me.family.default_split}%, the other parent ${100 - S.me.family.default_split}%. Use the split in your order.`),
       field('Receipt (image or PDF)', file, 'The file is fingerprinted (SHA-256) so it can be shown to be unchanged.'),
       h('label', { class: 'check field' }, inp('request', { type: 'checkbox', checked: true }), 'Ask for reimbursement now'),
       h('button', { class: 'primary', type: 'submit' }, 'Save'));
@@ -1188,7 +1206,8 @@ VIEWS.settings = async (main) => {
   const rerender = () => { clear(main); VIEWS.settings(main); };
   const famForm = h('form', { onsubmit: async (e) => { e.preventDefault(); await attempt(() => put('/api/family', formValues(famForm)), 'Saved'); await refreshMe(); } },
     field('Family name', inp('name', { value: f.name })), field('Time zone', inp('timezone', { value: f.timezone })),
-    field('Default expense split: your share (%)', inp('default_split', { type: 'number', min: 0, max: 100, value: f.default_split }), 'Used to pre-fill the other parent\'s share on new expenses.'),
+    field('Default expense split: share covered by the parent who paid (%)', inp('default_split', { type: 'number', min: 0, max: 100, value: f.default_split }),
+      `One setting for the whole family, the same for both parents. On a new expense, whoever paid covers this share and the other parent's share is pre-filled with the rest (100 minus this). Now: the paying parent ${f.default_split}%, the other parent ${100 - f.default_split}%.`),
     isParent() ? h('button', { class: 'primary', type: 'submit' }, 'Save') : null);
   const INFO = ['School', 'Teacher', 'Doctor', 'Dentist', 'Allergies', 'Medications', 'Insurance', 'Clothing / shoe size', 'Emergency contact', 'Other'];
   mount(main, head('Settings'),
@@ -1217,7 +1236,6 @@ VIEWS.settings = async (main) => {
 };
 
 // ---------- account (change password, delete account) ----------
-const isDeletedMember = (m) => /^deleted-\d+@invalid$/.test(m?.email || '');
 const othersInFamily = () => (S.me?.members || []).filter(m => m.id !== S.me.user.id && !isDeletedMember(m));
 
 function accountCard() {
