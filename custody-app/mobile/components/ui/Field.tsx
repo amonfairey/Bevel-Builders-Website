@@ -1,7 +1,15 @@
 import { forwardRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Platform, StyleSheet, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, TextInput, View, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle } from 'react-native';
 import { TOUCH, useTheme } from '@/lib/theme';
 import { AppText } from './AppText';
+
+/**
+ * Web preview only: drop the browser's own focus ring (dark outline) from a text input, so the
+ * accent border shows focus as on iPhone. `outlineStyle: 'none'` matters for <textarea>
+ * (multi-line inputs), where Chrome keeps an `outline-style: auto` ring at width 0.
+ * Typed loosely because React Native's outlineStyle type has no 'none'.
+ */
+export const WEB_NO_OUTLINE: TextStyle | null = Platform.OS === 'web' ? ({ outlineWidth: 0, outlineStyle: 'none' } as unknown as TextStyle) : null;
 
 /** Label + control + hint + error wrapper used by every form control. */
 export function FieldShell({ label, hint, error, children, style, labelRight }: { label?: string; hint?: string; error?: string | null; children: ReactNode; style?: StyleProp<ViewStyle>; labelRight?: ReactNode }) {
@@ -52,7 +60,7 @@ export const Field = forwardRef<TextInputRef, FieldProps>(function Field({ label
             fontSize: t.fontSize.body,
           },
           multiline ? styles.multi : null,
-          Platform.OS === 'web' ? styles.webNoOutline : null,
+          WEB_NO_OUTLINE,
           inputStyle,
         ]}
         {...rest}
@@ -70,6 +78,4 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   input: { minHeight: TOUCH, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   multi: { minHeight: 100, paddingTop: 10 },
-  // the accent border already shows focus; drop the browser's extra focus ring in the web preview
-  webNoOutline: { outlineWidth: 0 },
 });

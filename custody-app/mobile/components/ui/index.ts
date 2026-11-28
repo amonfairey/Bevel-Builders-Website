@@ -56,6 +56,8 @@ export { Field, type FieldProps, type TextInputRef } from './Field';
 export { TextArea } from './Field';
 /** Label/hint/error wrapper for custom controls. */
 export { FieldShell } from './Field';
+/** Web preview: style that removes the browser's focus ring from a custom TextInput (null on native). */
+export { WEB_NO_OUTLINE } from './Field';
 
 /** Tap-to-open option list (bottom sheet modal; works on web). */
 export { Select, type SelectProps, type Option, type OptionValue } from './Select';

@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { AppText, tapHaptic, type TextInputRef } from '@/components/ui';
+import { AppText, WEB_NO_OUTLINE, tapHaptic, type TextInputRef } from '@/components/ui';
 import { useTheme } from '@/lib/theme';
 
 /** True while the software keyboard is up (iOS: from keyboardWillShow, so padding changes with the animation). */
@@ -55,7 +55,7 @@ export const Composer = forwardRef<TextInputRef, ComposerProps>(function Compose
           style={[
             styles.input,
             { color: t.colors.ink, backgroundColor: t.colors.bg, borderColor: focused ? t.colors.accent : t.colors.line, fontSize: t.fontSize.body },
-            Platform.OS === 'web' ? styles.webNoOutline : null,
+            WEB_NO_OUTLINE,
           ]}
         />
         <Pressable
@@ -84,5 +84,4 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 40, maxHeight: 140, borderWidth: 1, borderRadius: 20, paddingHorizontal: 14, paddingTop: 9, paddingBottom: 9 },
   send: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   notice: { marginTop: 6, marginHorizontal: 4 },
-  webNoOutline: { outlineWidth: 0 },
 });

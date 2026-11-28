@@ -49,13 +49,15 @@ cd custody-app && CORS_ORIGINS=http://localhost:8081 npm start
 cd custody-app/mobile && EXPO_PUBLIC_API_URL=http://localhost:3000 npx expo start --web
 ```
 
-In the web preview the session token is kept in `localStorage` (on iPhone it is in the Keychain via `expo-secure-store`). Date and time fields render as real `<input type="date|time|datetime-local">` elements there. Pushes, haptics and the camera are no-ops.
+In the web preview the session token is kept in `localStorage` (on iPhone it is in the Keychain via `expo-secure-store`). Date and time fields render as real `<input type="date|time|datetime-local">` elements there. Pushes, haptics and the camera are no-ops (`lib/push.web.ts` replaces `lib/push.ts` and never loads `expo-notifications`).
+
+**Serving a static web export.** `npx expo export --platform web` produces a single-page build: one `index.html` plus JS bundles, with no file per route. Use `npx expo start --web` for the preview (it serves deep links such as `/thread/12` or `/schedule/3` directly). If you serve the exported folder instead, use a static server with an `index.html` fallback for unknown paths (for example `npx serve -s <dir>`); a plain `python3 -m http.server` works for `/` but returns 404 when you reload or open a deep link. The server's `CORS_ORIGINS` must list the origin you serve it from.
 
 ## Checks
 
 ```bash
 npm run typecheck   # tsc --noEmit (strict) for the app and for the unit tests
-npm test            # lib/format.ts + link mapping tests, plain Node (node --experimental-strip-types --test)
+npm test            # lib/format.ts, link mapping and upload-type tests, plain Node (node --experimental-strip-types --test)
 npx expo export --platform web --output-dir /tmp/coparent-web   # full production bundle; keep dist/ out of the repo
 ```
 
@@ -160,7 +162,7 @@ Shared code is owned by the foundation, and screen owners don't edit it: `lib/**
 
 **Route params**: `/schedule/change?date=YYYY-MM-DD` · `/activities/edit?id=<eventId>` (no id = new) · `/expense/new?eventId=&description=&amount=` · `/thread/[id]` · `/day/[date]` · `/schedule/[id]` (rule id) · `/expense/[id]` · `/activities/[id]` · `/settings/child/[id]`.
 
-**Notification links** (`lib/links.ts`): `dashboard` → `/` · `calendar` → `/calendar` · `schedule` → `/schedule` · `activities` → `/activities` · `expenses` → `/money` · `messages` → `/messages` · `messages/<id>` → `/thread/<id>` · `calls` → `/calls` · `exchanges` → `/exchanges` · `records` → `/records` · `settings` → `/settings`.
+**Notification links** (`lib/links.ts`): `dashboard` → `/` · `calendar` → `/calendar` · `schedule` → `/schedule` · `activities` → `/activities` · `expenses` → `/money` · `messages` → `/messages` · `messages/<id>` → `/thread/<id>` · `calls` → `/calls` · `exchanges` → `/exchanges` · `records` → `/records` · `settings` → `/settings` · anything else (or no link) → `/` (the dashboard, as `../API.md` asks).
 
 Form screens (change requests, new expense, new message, log a call, check-in...) open as iOS sheets with a Cancel button; this is set in `app/_layout.tsx`.
 

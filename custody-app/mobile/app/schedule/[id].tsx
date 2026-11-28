@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import {
   AppText, AsyncView, Badge, Button, ButtonRow, Callout, Card, EmptyState, Loading, NotesPanel, ParentDot, Row, Screen, Section, ShareTable,
   StatusBadge, useAttempt, useDialog,
@@ -12,6 +12,7 @@ import { api, errorMessage } from '@/lib/api';
 import { useBadges } from '@/lib/badges';
 import { fmtClock, fmtDate, fmtIso, nowLocalStamp, todayLocal } from '@/lib/format';
 import { useApi, usePeople } from '@/lib/hooks';
+import { routes } from '@/lib/links';
 import { useTheme } from '@/lib/theme';
 import type { AuditEntry, ImpactResponse, Rule } from '@/lib/types';
 
@@ -57,7 +58,7 @@ export default function RuleScreen() {
   return (
     <Screen headerTitle={rule?.name ?? 'Schedule item'} refreshing={q.refreshing} onRefresh={q.refresh} testID="rule-screen">
       <AsyncView state={q}>
-        {() => (rule ? <RuleDetail rule={rule} reload={q.reload} /> : (
+        {() => (rule ? <RuleDetail rule={rule} rules={q.data ?? []} reload={q.reload} /> : (
           <EmptyState icon="alert-circle-outline" title="Not found" message="This schedule item doesn't exist or belongs to another family." />
         ))}
       </AsyncView>
@@ -65,7 +66,7 @@ export default function RuleScreen() {
   );
 }
 
-function RuleDetail({ rule: r, reload }: { rule: Rule; reload: () => Promise<void> }) {
+function RuleDetail({ rule: r, rules, reload }: { rule: Rule; rules: Rule[]; reload: () => Promise<void> }) {
   const t = useTheme();
   const dialog = useDialog();
   const attempt = useAttempt();
@@ -140,6 +141,7 @@ function RuleDetail({ rule: r, reload }: { rule: Rule; reload: () => Promise<voi
   };
 
   const trail = buildTrail(r, auditQ.data, nameOf);
+  const supersededRule = r.supersedes != null ? rules.find((x) => x.id === r.supersedes) : undefined;
 
   return (
     <View>
@@ -160,6 +162,16 @@ function RuleDetail({ rule: r, reload }: { rule: Rule; reload: () => Promise<voi
           <View testID="rule-summary">
             {r.type === 'default' ? <AppText>{ruleSummary(r, nameOf)}</AppText> : <RuleBreakdown rule={r} />}
           </View>
+          {r.supersedes != null ? (
+            <AppText variant="subhead" style={{ marginTop: 8 }} testID="rule-replaces">
+              <AppText variant="subhead" tone="muted">Replaces: </AppText>
+              {supersededRule ? (
+                <AppText variant="subhead" tone="accent" accessibilityRole="link" onPress={() => router.push(routes.rule(supersededRule.id) as Href)}>
+                  {supersededRule.name}
+                </AppText>
+              ) : `schedule item #${r.supersedes}`}
+            </AppText>
+          ) : null}
           {r.priority ? <AppText variant="footnote" tone="muted" style={{ marginTop: 8 }}>{`Priority ${r.priority} (higher wins when items in the same layer overlap)`}</AppText> : null}
         </Card>
       </Section>

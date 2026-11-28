@@ -8,14 +8,16 @@ import { TEMPLATE_OPTIONS, isWeekendTemplate } from '@/components/schedule/summa
 import { WeekStrip } from '@/components/schedule/WeekStrip';
 import { api, errorMessage } from '@/lib/api';
 import { DAYS, DAYS_LONG, addDays, dow, fmtDate, isDate, todayLocal } from '@/lib/format';
-import { usePeople } from '@/lib/hooks';
+import { useApi, usePeople } from '@/lib/hooks';
 import { useTheme } from '@/lib/theme';
-import type { PatternTemplate, PatternTemplateInput, PreviewResponse } from '@/lib/types';
+import type { PatternTemplate, PatternTemplateInput, PreviewResponse, Rule } from '@/lib/types';
 
 /**
  * Regular (repeating) schedule from a template: alternating weekends (+ optional Wednesday
  * visit), every weekend, week on/off, 2-2-3, 2-2-5-5, 3-4-4-3 or a custom day-by-day cycle.
  * Preview shows the next 4 weeks and the time share before sending.
+ * When a regular schedule is already in effect, "Replaces" picks the one this new schedule
+ * ends once it is approved (POST /api/rules `supersedes`); default: the most recent active one.
  */
 export default function PatternScreen() {
   const t = useTheme();
@@ -44,6 +46,22 @@ export default function PatternScreen() {
   const [effFrom, setEffFrom] = useState('');
   const [effTo, setEffTo] = useState('');
   const [reason, setReason] = useState('');
+  // Regular schedules in effect that the new one can replace (newest first).
+  const rulesQ = useApi<Rule[]>(isParent ? '/api/rules' : null);
+  const current = useMemo(
+    () => (rulesQ.data ?? []).filter((r) => r.type === 'pattern' && (r.status === 'active' || r.status === 'unconfirmed')).sort((a, b) => b.id - a.id),
+    [rulesQ.data],
+  );
+  const defaultReplaces = (current.find((r) => r.status === 'active') ?? current[0])?.id ?? 0;
+  // null = not touched yet (follow the default); 0 = keep the current schedule too
+  const [replacesChoice, setReplacesChoice] = useState<number | null>(null);
+  const replaces = replacesChoice === 0 || current.some((r) => r.id === replacesChoice) ? (replacesChoice as number) : defaultReplaces;
+  const replaced = current.find((r) => r.id === replaces);
+  const replaceOptions = [
+    ...current.map((r) => ({ value: r.id, label: r.name, hint: r.status === 'unconfirmed' ? 'In effect, not yet confirmed' : 'In effect' })),
+    { value: 0, label: 'Keep the current schedule too', hint: 'Both apply; where they overlap, the newer one wins' },
+  ];
+
   const [preview, setPreview] = useState<{ key: string; start: string; data?: PreviewResponse; error?: string; loading?: boolean } | null>(null);
 
   const weekend = isWeekendTemplate(template);
@@ -115,7 +133,10 @@ export default function PatternScreen() {
   const send = async () => {
     const first = Object.values(problems)[0];
     if (first) { fail(first); return; }
-    await submit({ type: 'pattern', name: name.trim() || undefined, reason: reason.trim(), template: buildTemplate() });
+    await submit({
+      type: 'pattern', name: name.trim() || undefined, reason: reason.trim(), template: buildTemplate(),
+      ...(replaced ? { supersedes: replaced.id } : {}),
+    });
   };
 
   const dayOptions = [{ value: '', label: 'Default' }, ...parentOptions.map((p) => ({ value: String(p.value), label: nameOf(p.value) }))];
@@ -124,6 +145,18 @@ export default function PatternScreen() {
     <Screen headerTitle="Regular schedule" footer={<SubmitButton label={submitLabel} onPress={send} />} testID="schedule-pattern-screen">
       <ApprovalNotice what="this schedule" />
       <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. School-year schedule" hint="Optional. Defaults to “Regular schedule”." testID="pattern-name" />
+      {current.length ? (
+        <Select
+          label="Replaces"
+          value={replaces}
+          options={replaceOptions}
+          onChange={setReplacesChoice}
+          hint={replaced
+            ? (other ? `“${replaced.name}” ends automatically once ${other.name} approves this one.` : `“${replaced.name}” ends when you save this one.`)
+            : 'Both regular schedules stay in effect; where they overlap, the newer one wins.'}
+          testID="pattern-replaces"
+        />
+      ) : null}
       <Select label="Pattern" value={template} options={TEMPLATE_OPTIONS} onChange={onTemplate} testID="pattern-template" />
       <DateField label="Cycle starts on" value={anchor} onChange={setAnchor} hint={anchorHint} error={problems.anchor} testID="pattern-anchor" />
 

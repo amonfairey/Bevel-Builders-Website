@@ -91,6 +91,10 @@ function FamilyForm({ me }: { me: Me }) {
   };
 
   const phoneTz = deviceTimeZone();
+  // default_split is family-wide: the share the parent who paid an expense covers.
+  const splitN = Number(split);
+  const otherPct = split.trim() !== '' && Number.isFinite(splitN) && splitN >= 0 && splitN <= 100 ? `${100 - Math.round(splitN)}%` : '100 minus this';
+  const splitHint = `Same for both parents: whoever pays an expense covers this share. New expenses start the other parent's share at ${otherPct}.`;
   const readOnly = isParent ? undefined : { backgroundColor: t.colors.soft };
   return (
     <Section title="Family">
@@ -112,13 +116,13 @@ function FamilyForm({ me }: { me: Me }) {
           <Button title={`Use this phone's zone (${phoneTz})`} variant="link" size="sm" onPress={() => setTz(phoneTz)} style={{ marginTop: -10, marginBottom: 12 }} />
         ) : null}
         {isParent ? <Field
-          label="Default expense split: your share (%)"
+          label="Default expense split: paying parent's share (%)"
           value={split}
           onChangeText={(v) => { setSplit(v.replace(/[^0-9]/g, '')); if (errors.split) setErrors((x) => ({ ...x, split: undefined })); }}
           keyboardType="number-pad"
           maxLength={3}
           error={errors.split}
-          hint="Pre-fills the other parent's share on new expenses."
+          hint={splitHint}
           testID="family-split"
         /> : null}
         {isParent ? <Button title="Save" variant="primary" onPress={save} testID="family-save" /> : null}

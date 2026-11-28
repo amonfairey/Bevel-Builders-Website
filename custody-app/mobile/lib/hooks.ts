@@ -102,8 +102,15 @@ export const nameOf = (me: Me, id: number | null | undefined): string => member(
 export const youOr = (me: Me, id: number | null | undefined): string => (id === me.user.id ? 'You' : nameOf(me, id));
 /** Member color; grey for null/unknown. */
 export const colorOf = (me: Me, id: number | null | undefined): string => member(me, id)?.color || '#9aa4ab';
-export const parents = (me: Me): Member[] => me.members.filter((m) => m.role === 'parent');
-/** The co-parent, if they have joined. */
+/**
+ * An account removed with POST /api/account/delete: it stays in `members` (name "Deleted user",
+ * email deleted-<id>@invalid) so past records keep a name, but it is no longer a co-parent.
+ */
+export const isDeletedMember = (m: Pick<Member, 'email'> & { deleted?: boolean }): boolean =>
+  m.deleted === true || /^deleted-\d+@invalid$/i.test(m.email || '');
+/** Current parents (deleted accounts excluded; nameOf/colorOf still resolve those). */
+export const parents = (me: Me): Member[] => me.members.filter((m) => m.role === 'parent' && !isDeletedMember(m));
+/** The co-parent, if they have joined and still have an account. */
 export const otherParent = (me: Me): Member | undefined => parents(me).find((p) => p.id !== me.user.id);
 export const isParent = (me: Me): boolean => me.role === 'parent';
 export const childNames = (me: Me, ids: number[] | null | undefined): string =>

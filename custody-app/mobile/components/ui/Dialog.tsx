@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleShee
 import { useTheme } from '@/lib/theme';
 import { AppText } from './AppText';
 import { Button, type ButtonVariant } from './Button';
+import { WEB_NO_OUTLINE } from './Field';
 
 /**
  * Dialog system built on RN <Modal> (NOT Alert.alert: react-native-web's Alert is a no-op,
@@ -86,6 +87,7 @@ function DialogView({ entry, done }: { entry: Entry; done: () => void }) {
   const t = useTheme();
   const [note, setNote] = useState('');
   const [noteError, setNoteError] = useState<string | null>(null);
+  const [noteFocused, setNoteFocused] = useState(false);
   const settled = useRef(false);
   const finish = (fn: () => void) => { if (settled.current) return; settled.current = true; fn(); done(); };
 
@@ -105,7 +107,9 @@ function DialogView({ entry, done }: { entry: Entry; done: () => void }) {
           multiline
           autoFocus={o.noteRequired}
           accessibilityLabel="Note"
-          style={[styles.note, { color: t.colors.ink, borderColor: noteError ? t.colors.bad : t.colors.line, backgroundColor: t.colors.bg }]}
+          onFocus={() => setNoteFocused(true)}
+          onBlur={() => setNoteFocused(false)}
+          style={[styles.note, { color: t.colors.ink, borderColor: noteError ? t.colors.bad : noteFocused ? t.colors.accent : t.colors.line, backgroundColor: t.colors.bg }, WEB_NO_OUTLINE]}
         />
         {noteError ? <AppText variant="footnote" tone="bad" style={{ marginTop: 4 }}>{noteError}</AppText> : null}
       </View>

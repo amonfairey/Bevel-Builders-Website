@@ -29,6 +29,12 @@ export interface Member {
   role: Role;
   /** hex color the clients use for this person everywhere (dots, calendar strips, share bars) */
   color: string;
+  /**
+   * true for an account removed with POST /api/account/delete (kept as "Deleted user" so past
+   * records keep a name). Older servers omit it; the email is then `deleted-<id>@invalid`.
+   * Use isDeletedMember() from lib/hooks.
+   */
+  deleted?: boolean;
 }
 
 /** Free-form child info bank. Keys used by the web portal: School, Teacher, Doctor, Dentist, Allergies, Medications, Insurance, 'Clothing / shoe size', 'Emergency contact', Other. */
@@ -45,7 +51,10 @@ export interface Family {
   id: number;
   name: string;
   timezone: string;
-  /** the caller's default share of expenses in percent (0-100) */
+  /**
+   * Family-wide default split in percent (0-100): the share of an expense carried by the parent
+   * who paid it. A new expense pre-fills the other parent's share as `100 - default_split`.
+   */
   default_split: number;
   /** parents only; null once the co-parent has joined */
   invite_code?: string | null;

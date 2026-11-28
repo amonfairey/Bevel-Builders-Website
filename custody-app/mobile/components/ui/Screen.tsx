@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react';
+import { useContext, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
+import { HeaderHeightContext } from 'expo-router/react-navigation';
 import { useTheme } from '@/lib/theme';
 import { AppText } from './AppText';
 
@@ -45,6 +46,9 @@ export function Screen({
 }: ScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  // Height of the navigation bar above this screen (0 for tab roots / screens without a header).
+  // useHeaderHeight() would throw outside a navigator with a header, so read the context directly.
+  const headerHeight = useContext(HeaderHeightContext) ?? 0;
   const top = (safeTop ?? !!title) ? insets.top : 0;
   const pad = padded ? t.spacing.lg : 0;
 
@@ -90,7 +94,13 @@ export function Screen({
     <View style={[styles.root, { backgroundColor: t.colors.bg }]}>
       {header}
       {footer ? (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          // KeyboardAvoidingView measures its frame relative to its parent (below the nav bar),
+          // so without the header height the pinned footer stays covered by that much.
+          keyboardVerticalOffset={headerHeight}
+        >
           {body}
           <View style={{ paddingHorizontal: t.spacing.lg, paddingTop: t.spacing.sm, paddingBottom: Math.max(insets.bottom, t.spacing.sm), borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.colors.line, backgroundColor: t.colors.panel }}>
             {footer}

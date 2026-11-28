@@ -118,7 +118,14 @@ test('notification links map to app routes', () => {
   assert.equal(linkToRoute('messages/42'), '/thread/42');
   assert.equal(linkToRoute('messages'), '/messages');
   assert.equal(linkToRoute('settings'), '/settings');
-  assert.equal(linkToRoute('nonsense'), '/notifications');
+  assert.equal(linkToRoute('/calendar/'), '/calendar');
+  // API.md: clients fall back to the dashboard for anything they don't recognise
+  assert.equal(linkToRoute('nonsense'), '/');
+  assert.equal(linkToRoute('messages/abc'), '/');
+  assert.equal(linkToRoute('expenses/7'), '/');
+  assert.equal(linkToRoute(''), '/');
+  assert.equal(linkToRoute(null), '/');
+  assert.equal(linkToRoute(undefined), '/');
   assert.equal(routesForTest.newExpense({ eventId: 3, description: 'Cleats & socks', amount: 40 }), '/expense/new?eventId=3&description=Cleats%20%26%20socks&amount=40');
   assert.equal(routesForTest.editActivity(), '/activities/edit');
   assert.equal(routesForTest.scheduleChange('2026-03-08'), '/schedule/change?date=2026-03-08');

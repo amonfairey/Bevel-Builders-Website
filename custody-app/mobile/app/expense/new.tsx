@@ -90,7 +90,7 @@ export default function NewExpenseScreen() {
       ) : null}
       <Field label={`${otherName}'s share (%)`} value={share} onChangeText={(v) => { setShare(v.replace(/[^\d]/g, '').slice(0, 3)); setErrors((e) => ({ ...e, share: null })); }}
         keyboardType="number-pad" inputMode="numeric" error={errors.share}
-        hint={owed != null ? `${otherName} owes ${money(owed)} of ${money(amountCents)}. Use the split in your order; the default is set in Settings.` : 'Use the split in your order; the default is set in Settings.'}
+        hint={`${owed != null ? `${otherName} owes ${money(owed)} of ${money(amountCents)}. ` : ''}Use the split in your order. Default from Settings: whoever paid covers ${me.family.default_split}%, so ${otherName}'s share is ${100 - me.family.default_split}%.`}
         testID="expense-share" />
       <ReceiptPicker value={receipt} onChange={setReceipt} disabled={saving} />
       <Checkbox label="Ask for reimbursement now" value={request} onChange={setRequest}

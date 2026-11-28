@@ -7,7 +7,7 @@ import type { FilePayload } from '@/lib/types';
 /**
  * Receipt photo for a new expense: "Take photo" (camera, native only) or "Choose photo"
  * (photo library; a file chooser in the web preview), via the shared pickImagePayload
- * (base64 JPEG, max 8 MB). Shows a thumbnail of the chosen photo with Replace / Remove.
+ * (JPEG, PNG, GIF, WebP or HEIC as picked; max 8 MB). Shows a thumbnail of the chosen photo with Replace / Remove.
  * A denied camera permission explains how to turn it on and offers to open Settings.
  */
 export function ReceiptPicker({ value, onChange, disabled }: { value: FilePayload | null; onChange: (f: FilePayload | null) => void; disabled?: boolean }) {

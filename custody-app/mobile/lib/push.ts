@@ -16,7 +16,8 @@ import { getItem, KEYS, removeItem, setItem } from './storage';
  *   and POSTs it to /api/push-tokens.
  * - usePushRouting(): routes notification taps (including the tap that cold-launched the app)
  *   through lib/links.ts and marks the notification read.
- * Everything here is a no-op on web.
+ * On web, Metro uses lib/push.web.ts instead (no-ops that never import expo-notifications,
+ * which would otherwise log a push-token-listener warning in the web preview).
  */
 
 const isWeb = Platform.OS === 'web';

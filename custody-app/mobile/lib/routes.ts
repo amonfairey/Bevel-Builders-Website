@@ -7,7 +7,7 @@
  *   activities -> '/activities' expenses -> '/money'        messages -> '/messages'
  *   messages/<id> -> '/thread/<id>'   calls -> '/calls'     exchanges -> '/exchanges'
  *   records -> '/records'       settings -> '/settings'
- * Unknown or empty links go to the notifications inbox.
+ * Unknown or empty links fall back to the dashboard ('/'), as API.md asks of every client.
  */
 const LINK_ROUTES: Record<string, string> = {
   dashboard: '/',
@@ -29,7 +29,7 @@ export function linkToRoute(link: string | null | undefined): string {
   const l = String(link ?? '').trim().replace(/^\/+|\/+$/g, '');
   const thread = /^messages\/(\d+)$/.exec(l);
   if (thread) return `/thread/${thread[1]}`;
-  return LINK_ROUTES[l] ?? '/notifications';
+  return LINK_ROUTES[l] ?? '/';
 }
 
 export function isTabRoute(route: string): boolean {
